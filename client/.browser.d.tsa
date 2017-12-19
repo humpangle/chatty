@@ -1,0 +1,9 @@
+//cat .browser.d.tsa  > node_modules/react-apollo/browser.d.ts
+export { default as ApolloProvider } from './ApolloProvider';
+export { default as graphql } from './graphql';
+export { MutationOpts, QueryOpts, QueryProps, NamedProps, MutationFunc, OptionProps, ChildProps, OperationOption } from './types';
+export { withApollo } from './withApollo';
+export { getDataFromTree } from './getDataFromTree';
+import flowRight from 'lodash-es/flowRight';
+export { flowRight as compose };
+
