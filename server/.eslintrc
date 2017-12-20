@@ -1,35 +1,18 @@
 {
   "parser": "babel-eslint",
-  "extends": "airbnb",
+  "extends": ["eslint:recommended", "plugin:import/errors", "prettier"],
   "plugins": [
-    "react",
-    "jsx-a11y",
-    "import"
+    "import",
+    "prettier"
   ],
   "rules": {
-    "react/jsx-filename-extension": [
-      1,
-      {
-        "extensions": [
-          ".js",
-          ".jsx"
-        ]
-      }
-    ],
-    "react/require-default-props": [
-      0
-    ],
-    "react/no-unused-prop-types": [
-      2,
-      {
-        "skipShapeProps": true
-      }
-    ],
-    "react/no-multi-comp": [
-      0
-    ],
+    "prettier/prettier": "error",
     "no-bitwise": [
       0
     ]
+  },
+  "env": {
+    "node": true,
+    "es6": true
   }
 }
