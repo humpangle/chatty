@@ -329,8 +329,8 @@ apollo-client-preset@^1.0.5:
     graphql-tag "^2.4.2"
 
 apollo-client@^2.0.4:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/apollo-client/-/apollo-client-2.1.0.tgz#1d3716cb5d4ad70c3a4147da629fdfcb53925e7b"
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/apollo-client/-/apollo-client-2.0.4.tgz#425c2944e068602b4e002b3f1ad08ddd893f1a0c"
   dependencies:
     "@types/zen-observable" "^0.5.3"
     apollo-cache "^1.0.2"
@@ -2341,8 +2341,8 @@ expect@^22.0.3:
     jest-regex-util "^22.0.3"
 
 expo@^24.0.0:
-  version "24.0.0"
-  resolved "https://registry.yarnpkg.com/expo/-/expo-24.0.0.tgz#64bda50c5d01d2ba5e4f7fcdb1d6eae24e27bccd"
+  version "24.0.1"
+  resolved "https://registry.yarnpkg.com/expo/-/expo-24.0.1.tgz#58f8354f12e1340ef5f572accc8a85750b573cce"
   dependencies:
     "@expo/vector-icons" "^6.2.0"
     babel-preset-expo "^4.0.0"
@@ -5659,9 +5659,9 @@ react-native-vector-icons@4.4.2:
     prop-types "^15.5.10"
     yargs "^8.0.2"
 
-react-native@^0.51.0:
+"react-native@https://github.com/expo/react-native/archive/sdk-24.0.0.tar.gz":
   version "0.51.0"
-  resolved "https://registry.yarnpkg.com/react-native/-/react-native-0.51.0.tgz#fe25934b3030fd323f3ca1a70f034133465955ed"
+  resolved "https://github.com/expo/react-native/archive/sdk-24.0.0.tar.gz#aa7b9c20266b844bfc916aa2e4ddb51036d2b83c"
   dependencies:
     absolute-path "^0.0.0"
     art "^0.10.0"
@@ -5852,6 +5852,10 @@ readdirp@^2.0.0:
     minimatch "^3.0.2"
     readable-stream "^2.0.2"
     set-immediate-shim "^1.0.1"
+
+redux-devtools-extension@^2.13.2:
+  version "2.13.2"
+  resolved "https://registry.yarnpkg.com/redux-devtools-extension/-/redux-devtools-extension-2.13.2.tgz#e0f9a8e8dfca7c17be92c7124958a3b94eb2911d"
 
 redux-logger@^2.7.4:
   version "2.10.2"
