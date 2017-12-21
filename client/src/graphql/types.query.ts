@@ -27,9 +27,21 @@ export interface GroupQuery {
   group: GroupType;
 }
 
-export type CreateMessageMutation = MessageType;
+export interface CreateMessageMutation {
+  createMessage: MessageType;
+}
+
 export interface CreateMessageMutationVariables {
   text: string;
   userId: string;
   groupId: string;
+}
+
+export interface CreateGroupMutation {
+  createGroup: GroupType;
+}
+
+export interface CreateGroupMutationVariables {
+  name: string;
+  userId: string;
 }

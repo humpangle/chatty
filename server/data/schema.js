@@ -34,10 +34,14 @@ export const Schema = [
     messages(groupId: ID, userId: ID): [Message]
 
     group(id: ID!): Group
+
+    groups: [Group]
   }
 
   type Mutation {
     createMessage(text: String!, userId: ID!, groupId: ID!): Message
+
+    createGroup(name: String!, userId: ID!): Group
   }
 
   schema {

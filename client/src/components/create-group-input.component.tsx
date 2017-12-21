@@ -3,11 +3,11 @@ import { TextInput, TextInputProperties, View } from 'react-native';
 
 import { sendBtn, styles } from './input-commons.component';
 
-interface MessageInputProps {
+interface CreateGroupInputProps {
   send: (text: string) => void;
 }
 
-class MessageInput extends React.Component<MessageInputProps> {
+class CreateGroupInput extends React.Component<CreateGroupInputProps> {
   state: {
     text: string;
   };
@@ -22,7 +22,7 @@ class MessageInput extends React.Component<MessageInputProps> {
             ref={this.makeRef}
             onChangeText={this.setText}
             style={styles.input}
-            placeholder="Type your message here!"
+            placeholder="Type group name here!"
           />
         </View>
         <View style={styles.sendButtonContainer}>{sendBtn(this.send)}</View>
@@ -42,4 +42,4 @@ class MessageInput extends React.Component<MessageInputProps> {
     (this.textInput = c);
 }
 
-export default MessageInput;
+export default CreateGroupInput;
