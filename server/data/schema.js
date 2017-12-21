@@ -3,14 +3,14 @@ export const Schema = [
   scalar Date
 
   type Group {
-    id: Int!
+    id: ID!
     name: String
     users: [User]!
     messages: [Message]
   }
 
   type User {
-    id: Int!
+    id: ID!
     email: String!
     username: String
     messages: [Message]
@@ -19,7 +19,7 @@ export const Schema = [
   }
 
   type Message {
-    id: Int!
+    id: ID!
     to: Group!
     from: User!
     text: String!
@@ -27,13 +27,13 @@ export const Schema = [
   }
 
   type Query {
-    user(email: String, id: Int): User
+    user(email: String, id: ID): User
 
     users: [User]
 
-    messages(groupId: Int, userId: Int): [Message]
+    messages(groupId: ID, userId: ID): [Message]
 
-    group(id: Int!): Group
+    group(id: ID!): Group
   }
 
   schema {

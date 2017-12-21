@@ -2,21 +2,31 @@ import { InMemoryCache } from 'apollo-cache-inmemory';
 import { ApolloClient } from 'apollo-client';
 import { ApolloLink, NextLink } from 'apollo-client-preset';
 import { HttpLink } from 'apollo-link-http';
+import Expo from 'expo';
 import * as React from 'react';
 import { ApolloProvider } from 'react-apollo';
-import { StyleSheet, Text, View } from 'react-native';
+import { Provider } from 'react-redux';
+import { combineReducers, createStore } from 'redux';
+import { composeWithDevTools } from 'redux-devtools-extension';
+import AppWithNavigationState, { navigationReducer } from './navigation';
 
-let link = new HttpLink({
-  uri: 'https://api.graph.cool/simple/v1/cjazk9eed1cfp0197ngkx7cc6',
-}) as ApolloLink | HttpLink;
+const store = createStore(
+  combineReducers({ nav: navigationReducer }),
+  {},
+  composeWithDevTools()
+);
+
+const API_URL = Expo.Constants.manifest.extra.REACT_NATIVE_APP_API_URL;
+
+let link = new HttpLink({ uri: `${API_URL}/graphql` }) as ApolloLink;
 
 if (process.env.NODE_ENV !== 'production') {
   const logger = new ApolloLink((operation, forward: NextLink) => {
     // tslint:disable-next-line:no-console
-    console.log(operation.operationName);
+    console.log('\nApollo graphql operation: ', operation.operationName);
     return forward(operation).map(result => {
       // tslint:disable-next-line:no-console
-      console.log(`received result from ${operation.operationName}`);
+      console.log('\nreceived result from: ', operation.operationName);
       return result;
     });
   });
@@ -32,27 +42,11 @@ const client = new ApolloClient({
 export default class App extends React.Component<{}, {}> {
   render() {
     return (
-      <ApolloProvider client={client}>
-        <View style={styles.container}>
-          <Text>Open up App.js to start working on your app!</Text>
-          <Text>Changes you make will automatically reload.</Text>
-          <Text>Shake your phone to open the developer menu.</Text>
-        </View>
-      </ApolloProvider>
+      <Provider store={store}>
+        <ApolloProvider client={client}>
+          <AppWithNavigationState />
+        </ApolloProvider>
+      </Provider>
     );
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5FCFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  welcome: {
-    fontSize: 20,
-    textAlign: 'center',
-    margin: 10,
-  },
-});

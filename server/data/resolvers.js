@@ -22,7 +22,7 @@ export const Resolvers = {
   },
   Message: {
     to: message => message.getGroup(),
-    from: message => message.getuser()
+    from: message => message.getUser()
   },
   User: {
     messages: user =>

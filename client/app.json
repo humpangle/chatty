@@ -1,5 +1,8 @@
 {
   "expo": {
-    "sdkVersion": "24.0.0"
+    "sdkVersion": "24.0.0",
+    "extra": {
+      "REACT_NATIVE_APP_API_URL": "https://af82ef79.ngrok.io"
+    }
   }
 }

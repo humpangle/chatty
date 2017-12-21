@@ -36,6 +36,6 @@ const graphqlServer = createServer(app);
 graphqlServer.listen(GRAPHQL_PORT, () =>
   // eslint-disable-next-line no-console
   console.log(
-    `GRAPHQL server is running on http://localhost:${GRAPHQL_PORT}/graphql`
+    `GRAPHQL server is running on http://0.0.0.0:${GRAPHQL_PORT}/graphql`
   )
 );
