@@ -26,3 +26,10 @@ export interface UserQuery {
 export interface GroupQuery {
   group: GroupType;
 }
+
+export type CreateMessageMutation = MessageType;
+export interface CreateMessageMutationVariables {
+  text: string;
+  userId: string;
+  groupId: string;
+}

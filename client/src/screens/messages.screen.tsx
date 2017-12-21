@@ -1,11 +1,32 @@
 import randomColor from 'randomcolor';
 import * as React from 'react';
-import { ChildProps, graphql, QueryProps } from 'react-apollo';
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import {
+  ChildProps,
+  compose,
+  graphql,
+  MutationFunc,
+  QueryProps,
+} from 'react-apollo';
+import {
+  ActivityIndicator,
+  FlatList,
+  FlatListProperties,
+  KeyboardAvoidingView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { NavigationNavigatorProps, NavigationProp } from 'react-navigation';
+import MessageInput from '../components/message-input.component';
 import Message from '../components/message.component';
+import CREATE_MESSAGE_MUTATION from '../graphql/create-message.mutation';
 import { GROUP_QUERY } from '../graphql/group.query';
-import { GroupQuery, GroupType, MessageType } from '../graphql/types.query';
+import {
+  CreateMessageMutation,
+  CreateMessageMutationVariables,
+  GroupQuery,
+  GroupType,
+  MessageType,
+} from '../graphql/types.query';
 
 const styles = StyleSheet.create({
   container: {
@@ -32,8 +53,26 @@ type OwnProps = NavigatorProps & {
 };
 
 type GroupQueryWithData = GroupQuery & QueryProps;
-type InputProps = OwnProps & GroupQueryWithData;
-type MessagesProps = ChildProps<InputProps, GroupQuery>;
+
+type Mutation = MutationFunc<
+  CreateMessageMutation,
+  CreateMessageMutationVariables
+>;
+
+interface CreateMessageParams {
+  text: string;
+  userId: string;
+}
+
+type CreateMessageMutationWithVariables = Mutation & {
+  createMessage: (params: CreateMessageParams) => Promise<Mutation>;
+};
+
+type InputProps = OwnProps &
+  GroupQueryWithData &
+  CreateMessageMutationWithVariables;
+
+type MessagesProps = ChildProps<InputProps, GroupQuery & CreateMessageMutation>;
 
 class Messages extends React.Component<MessagesProps> {
   static navigationOptions = (options: NavigatorProps) => {
@@ -46,6 +85,8 @@ class Messages extends React.Component<MessagesProps> {
   } = {
     usernameColors: {},
   };
+
+  private flatList: FlatList<GroupType>;
 
   componentWillReceiveProps(nextProps: MessagesProps) {
     if (nextProps.group && nextProps.group.users) {
@@ -73,13 +114,21 @@ class Messages extends React.Component<MessagesProps> {
     }
 
     return (
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={'position'}
+        contentContainerStyle={styles.container}
+        keyboardVerticalOffset={64}
+        style={styles.container}
+      >
         <FlatList
+          ref={this.makeFlatList}
           data={group.messages.slice().reverse()}
           keyExtractor={this.keyExtractor}
           renderItem={this.renderItem}
         />
-      </View>
+
+        <MessageInput send={this.send} />
+      </KeyboardAvoidingView>
     );
   }
 
@@ -92,19 +141,97 @@ class Messages extends React.Component<MessagesProps> {
       message={message}
     />
   );
+
+  private makeFlatList = (
+    c: React.Component<FlatListProperties<GroupType>> & FlatList<GroupType>
+  ) => (this.flatList = c);
+
+  private send = async (text: string) => {
+    await this.props.createMessage({
+      text,
+      userId: '1',
+    });
+
+    this.flatList.scrollToEnd({ animated: true });
+  };
 }
 
-export default graphql<GroupQuery, InputProps>(GROUP_QUERY, {
-  props: props => {
-    const data = props.data as GroupQueryWithData;
-    return data;
-  },
-  options: ownProps => {
-    const navigation = ownProps.navigation as NavigationProps;
-    return {
-      variables: {
-        groupId: navigation.state.params.groupId,
-      },
-    };
-  },
-})(Messages);
+export default compose(
+  graphql<GroupQuery, InputProps>(GROUP_QUERY, {
+    props: props => {
+      const data = props.data as GroupQueryWithData;
+      return data;
+    },
+    options: ownProps => {
+      const navigation = ownProps.navigation as NavigationProps;
+      return {
+        variables: {
+          groupId: navigation.state.params.groupId,
+        },
+      };
+    },
+  }),
+  graphql<CreateMessageMutation, InputProps>(CREATE_MESSAGE_MUTATION, {
+    props: props => {
+      const mutate = props.mutate as Mutation;
+      const ownProps = props.ownProps;
+      const navigation = ownProps.navigation as NavigationProps;
+      const groupId = navigation.state.params.groupId;
+      return {
+        ...ownProps,
+        createMessage: (params: CreateMessageParams) => {
+          return mutate({
+            variables: { ...params, groupId },
+            optimisticResponse: {
+              __typename: 'Mutation',
+              createMessage: {
+                __typename: 'Message',
+                id: '-1',
+                text: params.text,
+                createdAt: new Date().toISOString(),
+                from: {
+                  __typename: 'User',
+                  id: params.userId,
+                  username: 'Justyn.Kautzer',
+                },
+                to: {
+                  __typename: 'Group',
+                  id: groupId,
+                },
+              },
+            },
+            update(store, { data }) {
+              if (!data) {
+                return;
+              }
+              const storeData = store.readQuery({
+                query: GROUP_QUERY,
+                variables: { groupId },
+              }) as GroupQueryWithData;
+
+              const group = storeData.group;
+              const existingMessages = group.messages;
+              const newMessage = data.createMessage;
+
+              if (
+                newMessage.id !== null &&
+                existingMessages.some(m => m.id === newMessage.id)
+              ) {
+                return;
+              }
+
+              const newMessages = [newMessage, ...existingMessages];
+              const newGroup = { ...group, messages: newMessages };
+
+              store.writeQuery({
+                query: GROUP_QUERY,
+                variables: { groupId },
+                data: { ...storeData, group: newGroup },
+              });
+            },
+          });
+        },
+      };
+    },
+  })
+)(Messages);

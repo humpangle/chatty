@@ -10,7 +10,16 @@ export const Resolvers = {
         where: args,
         order: [["createdAt", "DESC"]]
       }),
-    user: (_, args) => User.findOne({ where: args })
+    user: (_, args) => User.findOne({ where: args }),
+    users: () => User.findAll()
+  },
+  Mutation: {
+    createMessage: (_, { text, userId, groupId }) =>
+      Message.create({
+        text,
+        userId,
+        groupId
+      })
   },
   Group: {
     users: group => group.getUsers(),

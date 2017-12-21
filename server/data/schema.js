@@ -36,8 +36,13 @@ export const Schema = [
     group(id: ID!): Group
   }
 
+  type Mutation {
+    createMessage(text: String!, userId: ID!, groupId: ID!): Message
+  }
+
   schema {
     query: Query
+    mutation: Mutation
   }
 `
 ];
