@@ -28,7 +28,12 @@ export const Resolvers = {
           group.addUser(user);
           return group;
         });
-      })
+      }),
+
+    updateGroup: (_, { id, name }) =>
+      Group.findOne({ where: { id } }).then(group =>
+        group.update({ name }).then(updatedGrp => updatedGrp)
+      )
   },
   Group: {
     users: group => group.getUsers(),

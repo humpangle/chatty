@@ -5,6 +5,10 @@ export interface UserType {
   groups: GroupType[];
 }
 
+export type UserTypeWithFriends = UserType & {
+  friends?: UserType[];
+};
+
 export interface GroupType {
   id: string;
   name: string;

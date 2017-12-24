@@ -206,7 +206,7 @@ export default compose(
                 return;
               }
 
-              const newGroups = [newGroup, ...existingGroups];
+              const newGroups = [...existingGroups, newGroup];
               const newUser = { ...user, groups: newGroups };
 
               store.writeQuery({
