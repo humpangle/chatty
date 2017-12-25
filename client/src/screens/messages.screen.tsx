@@ -1,3 +1,5 @@
+import Buffer from 'buffer/';
+import update from 'immutability-helper';
 import randomColor from 'randomcolor';
 import * as React from 'react';
 import {
@@ -13,6 +15,7 @@ import {
   FlatListProperties,
   KeyboardAvoidingView,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { NavigationNavigatorProps, NavigationProp } from 'react-navigation';
@@ -25,7 +28,7 @@ import {
   CreateMessageMutationVariables,
   GroupQuery,
   GroupType,
-  MessageType,
+  MessageEdge,
 } from '../graphql/types.query';
 
 const styles = StyleSheet.create({
@@ -48,8 +51,10 @@ type NavigationProps = NavigationProp<NavigationState, {}>;
 type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
 type OwnProps = NavigatorProps & {
-  loading: boolean;
-  group: GroupType;
+  loading?: boolean;
+  group?: GroupType;
+  error?: {};
+  loadMoreEntries: () => undefined;
 };
 
 type GroupQueryWithData = GroupQuery & QueryProps;
@@ -74,16 +79,22 @@ type InputProps = OwnProps &
 
 type MessagesProps = ChildProps<InputProps, GroupQuery & CreateMessageMutation>;
 
+interface MessagesState {
+  usernameColors: { [key: string]: string };
+  refreshing: boolean;
+  loadingMoreEntries: boolean;
+}
+
 class Messages extends React.Component<MessagesProps> {
   static navigationOptions = (options: NavigatorProps) => {
     const navigation = options.navigation as NavigationProps;
     return { title: navigation.state.params.title };
   };
 
-  state: {
-    usernameColors: { [key: string]: string };
-  } = {
+  state: MessagesState = {
     usernameColors: {},
+    refreshing: false,
+    loadingMoreEntries: false,
   };
 
   private flatList: FlatList<GroupType>;
@@ -103,7 +114,15 @@ class Messages extends React.Component<MessagesProps> {
   }
 
   render() {
-    const { loading, group } = this.props;
+    const { loading, group, error } = this.props;
+
+    if (error) {
+      return (
+        <View>
+          <Text>Error fetching groups!</Text>
+        </View>
+      );
+    }
 
     if (loading && !group) {
       return (
@@ -122,9 +141,11 @@ class Messages extends React.Component<MessagesProps> {
       >
         <FlatList
           ref={this.makeFlatList}
-          data={group.messages.slice().reverse()}
+          data={group.messages.edges}
           keyExtractor={this.keyExtractor}
           renderItem={this.renderItem}
+          onEndReached={this.onEndReached}
+          inverted={true}
         />
 
         <MessageInput send={this.send} />
@@ -132,9 +153,14 @@ class Messages extends React.Component<MessagesProps> {
     );
   }
 
-  keyExtractor = (item: MessageType) => item.id;
+  private keyExtractor = (item: MessageEdge) => item.node.id;
 
-  renderItem = ({ item: message }: { item: MessageType; index: number }) => (
+  private renderItem = ({
+    item: { node: message },
+  }: {
+    item: MessageEdge;
+    index: number;
+  }) => (
     <Message
       color={this.state.usernameColors[message.from.username]}
       isCurrentUser={message.from.id === '1'}
@@ -147,26 +173,84 @@ class Messages extends React.Component<MessagesProps> {
   ) => (this.flatList = c);
 
   private send = async (text: string) => {
+    if (!text) {
+      return;
+    }
+
     await this.props.createMessage({
       text,
       userId: '1',
     });
 
-    this.flatList.scrollToEnd({ animated: true });
+    this.flatList.scrollToIndex({
+      animated: true,
+      index: 0,
+    });
+  };
+
+  private onEndReached = async () => {
+    const { group, loadMoreEntries } = this.props;
+
+    if (!this.state.loadingMoreEntries && group.messages.pageInfo.hasNextPage) {
+      this.setState(previousState => ({
+        ...previousState,
+        loadingMoreEntries: true,
+      }));
+    }
+
+    await loadMoreEntries();
+
+    this.setState(previousState => ({
+      ...previousState,
+      loadingMoreEntries: false,
+    }));
   };
 }
+
+const ITEMS_PER_PAGE = 10;
 
 export default compose(
   graphql<GroupQuery, InputProps>(GROUP_QUERY, {
     props: props => {
       const data = props.data as GroupQueryWithData;
-      return data;
+      const { loading, group, fetchMore, error } = data;
+      return {
+        loading,
+        error,
+        group,
+        loadMoreEntries: () =>
+          fetchMore({
+            variables: {
+              first: ITEMS_PER_PAGE,
+              after:
+                group.messages.edges[group.messages.edges.length - 1].cursor,
+            },
+            updateQuery: (previousResult, options) => {
+              const fetchMoreResult = options.fetchMoreResult as GroupQueryWithData;
+
+              if (!fetchMoreResult) {
+                return previousResult;
+              }
+
+              return update(previousResult, {
+                group: {
+                  messages: {
+                    edges: { $push: fetchMoreResult.group.messages.edges },
+                    pageInfo: { $set: fetchMoreResult.group.messages.pageInfo },
+                  },
+                },
+              });
+            },
+          }),
+      };
     },
     options: ownProps => {
-      const navigation = ownProps.navigation as NavigationProps;
       return {
         variables: {
-          groupId: navigation.state.params.groupId,
+          groupId:
+            (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
+            '-1',
+          first: ITEMS_PER_PAGE,
         },
       };
     },
@@ -175,8 +259,9 @@ export default compose(
     props: props => {
       const mutate = props.mutate as Mutation;
       const ownProps = props.ownProps;
-      const navigation = ownProps.navigation as NavigationProps;
-      const groupId = navigation.state.params.groupId;
+      const groupId =
+        (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
+        '-1';
       return {
         ...ownProps,
         createMessage: (params: CreateMessageParams) => {
@@ -200,33 +285,54 @@ export default compose(
                 },
               },
             },
+
             update(store, { data }) {
               if (!data) {
                 return;
               }
+
               const storeData = store.readQuery({
                 query: GROUP_QUERY,
-                variables: { groupId },
+                variables: {
+                  groupId,
+                  first: ITEMS_PER_PAGE,
+                },
               }) as GroupQueryWithData;
 
-              const group = storeData.group;
-              const existingMessages = group.messages;
               const newMessage = data.createMessage;
 
               if (
-                newMessage.id !== null &&
-                existingMessages.some(m => m.id === newMessage.id)
+                newMessage.id &&
+                storeData.group.messages.edges.some(
+                  m => m.node.id === newMessage.id
+                )
               ) {
                 return;
               }
 
-              const newMessages = [newMessage, ...existingMessages];
-              const newGroup = { ...group, messages: newMessages };
+              const newMessageAsEdge = {
+                __typename: 'MessageEdge',
+                node: newMessage,
+                cursor: Buffer.from(newMessage.id.toString()).toString(
+                  'base64'
+                ),
+              };
 
               store.writeQuery({
                 query: GROUP_QUERY,
-                variables: { groupId },
-                data: { ...storeData, group: newGroup },
+                variables: {
+                  groupId,
+                  first: ITEMS_PER_PAGE,
+                },
+                data: update(storeData, {
+                  group: {
+                    messages: {
+                      edges: {
+                        $unshift: [newMessageAsEdge],
+                      },
+                    },
+                  },
+                }),
               });
             },
           });

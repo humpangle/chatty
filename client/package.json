@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "devDependencies": {
+    "@types/buffer": "https://github.com/samba6/types-buffer.git",
     "@types/enzyme": "^3.1.6",
     "@types/enzyme-adapter-react-16": "^1.0.1",
     "@types/expo": "^23.0.0",
@@ -46,7 +47,8 @@
     "android": "react-native-scripts android",
     "ios": "react-native-scripts ios",
     "test": "node node_modules/jest/bin/jest.js --watch",
-    "generateConfig": "rimraf app.json && node generateConfig"
+    "generateConfig": "rimraf app.json && node generateConfig",
+    "tsc-watch": "tsc --watch -p tsconfig.json"
   },
   "jest": {
     "preset": "jest-expo"
@@ -54,6 +56,7 @@
   "dependencies": {
     "apollo-client-preset": "^1.0.5",
     "apollo-link-ws": "^1.0.4",
+    "buffer": "^5.0.8",
     "expo": "^24.0.0",
     "graphql": "^0.12.3",
     "graphql-tag": "^2.6.1",

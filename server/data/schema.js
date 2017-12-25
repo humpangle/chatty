@@ -6,7 +6,7 @@ export const Schema = [
     id: ID!
     name: String
     users: [User]!
-    messages: [Message]
+    messages(first: Int, after: String, last: Int, before: String): MessageConnection
   }
 
   type User {
@@ -24,6 +24,21 @@ export const Schema = [
     from: User!
     text: String!
     createdAt: Date!
+  }
+
+  type MessageConnection {
+    edges: [MessageEdge]
+    pageInfo: PageInfo!
+  }
+
+  type MessageEdge {
+    cursor: String!
+    node: Message!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    hasPreviousPage: Boolean!
   }
 
   type Query {

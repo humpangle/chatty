@@ -1,19 +1,49 @@
+export interface UserQuery {
+  user: UserType;
+}
+
 export interface UserType {
   id: string;
   email: string;
   username: string;
-  groups: GroupType[];
+  groups: UserGroupType[];
 }
 
-export type UserTypeWithFriends = UserType & {
+export interface UserGroupType {
+  id: string;
+  name: string;
+  users: UserType[];
+  messages: MessageType[];
+}
+
+export type UserWithFriendsType = UserType & {
   friends?: UserType[];
 };
+
+export interface GroupQuery {
+  group: GroupType;
+}
 
 export interface GroupType {
   id: string;
   name: string;
   users: UserType[];
-  messages: MessageType[];
+  messages: MessageConnection;
+}
+
+export interface MessageConnection {
+  edges: MessageEdge[];
+  pageInfo: PageInfo;
+}
+
+export interface PageInfo {
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface MessageEdge {
+  cursor: string;
+  node: MessageType;
 }
 
 export interface MessageType {
@@ -21,14 +51,6 @@ export interface MessageType {
   from: UserType;
   createdAt: string;
   text: string;
-}
-
-export interface UserQuery {
-  user: UserType;
-}
-
-export interface GroupQuery {
-  group: GroupType;
 }
 
 export interface CreateMessageMutation {
