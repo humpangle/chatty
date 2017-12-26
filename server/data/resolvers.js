@@ -26,18 +26,22 @@ export const Resolvers = {
         groupId
       }),
 
-    createGroup: (_, { name, userId }) =>
+    createGroup: (_, { name, userId, userIds }) =>
       Group.create({ name }).then(group => {
-        return User.findOne({ where: { id: userId } }).then(user => {
-          group.addUser(user);
-          return group;
-        });
+        group.addUser([userId, ...userIds]);
+        return group;
       }),
 
     updateGroup: (_, { id, name }) =>
       Group.findOne({ where: { id } }).then(group =>
         group.update({ name }).then(updatedGrp => updatedGrp)
-      )
+      ),
+
+    createUser: (_, { email, username }) =>
+      User.create({
+        email,
+        username
+      })
   },
   Group: {
     users: group => group.getUsers(),

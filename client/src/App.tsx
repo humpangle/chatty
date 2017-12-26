@@ -26,7 +26,12 @@ if (process.env.NODE_ENV !== 'production') {
     console.log('\nApollo graphql operation: ', operation.operationName);
     return forward(operation).map(result => {
       // tslint:disable-next-line:no-console
-      console.log('\nreceived result from: ', operation.operationName);
+      console.log(
+        '\nreceived result from: ',
+        operation.operationName,
+        '\n',
+        result
+      );
       return result;
     });
   });

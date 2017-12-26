@@ -1,71 +1,78 @@
 export const Schema = [
   `
-  scalar Date
+    scalar Date
 
-  type Group {
-    id: ID!
-    name: String
-    users: [User]!
-    messages(first: Int, after: String, last: Int, before: String): MessageConnection
-  }
+    type Group {
+      id: ID!
+      name: String
+      users: [User]!
+      messages(
+        first: Int
+        after: String
+        last: Int
+        before: String
+      ): MessageConnection
+    }
 
-  type User {
-    id: ID!
-    email: String!
-    username: String
-    messages: [Message]
-    groups: [Group]
-    friends: [User]
-  }
+    type User {
+      id: ID!
+      email: String!
+      username: String
+      messages: [Message]
+      groups: [Group]
+      friends: [User]
+    }
 
-  type Message {
-    id: ID!
-    to: Group!
-    from: User!
-    text: String!
-    createdAt: Date!
-  }
+    type Message {
+      id: ID!
+      to: Group!
+      from: User!
+      text: String!
+      createdAt: Date!
+    }
 
-  type MessageConnection {
-    edges: [MessageEdge]
-    pageInfo: PageInfo!
-  }
+    type MessageConnection {
+      edges: [MessageEdge]
+      pageInfo: PageInfo!
+    }
 
-  type MessageEdge {
-    cursor: String!
-    node: Message!
-  }
+    type MessageEdge {
+      cursor: String!
+      node: Message!
+    }
 
-  type PageInfo {
-    hasNextPage: Boolean!
-    hasPreviousPage: Boolean!
-  }
+    type PageInfo {
+      hasNextPage: Boolean!
+      hasPreviousPage: Boolean!
+    }
 
-  type Query {
-    user(email: String, id: ID): User
+    type Query {
+      user(email: String, id: ID): User
 
-    users: [User]
+      users: [User]
 
-    messages(groupId: ID, userId: ID): [Message]
+      messages(groupId: ID, userId: ID): [Message]
 
-    group(id: ID!): Group
+      group(id: ID!): Group
 
-    groups: [Group]
-  }
+      groups: [Group]
+    }
 
-  type Mutation {
-    createMessage(text: String!, userId: ID!, groupId: ID!): Message
+    type Mutation {
+      createMessage(text: String!, userId: ID!, groupId: ID!): Message
 
-    createGroup(name: String!, userId: ID!): Group
+      createGroup(name: String!, userId: ID!, userIds: [ID!]): Group
 
-    updateGroup(name: String!, id: ID!): Group
-  }
+      updateGroup(name: String!, id: ID!): Group
 
-  schema {
-    query: Query
-    mutation: Mutation
-  }
-`
+      createUser(email: String!, username: String!): User
+    }
+
+    schema {
+      query: Query
+      mutation: Mutation
+    }
+  `
 ];
 
 export default Schema;

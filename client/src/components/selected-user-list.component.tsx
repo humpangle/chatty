@@ -1,14 +1,13 @@
 import * as React from 'react';
 import {
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import Icon from 'samba6-vector-icons/FontAwesome';
-import { UserType } from '../graphql/types.query';
+import { UserFriendType } from '../graphql/types.query';
 
 const styles = StyleSheet.create({
   list: {
@@ -17,6 +16,9 @@ const styles = StyleSheet.create({
   itemContainer: {
     alignItems: 'center',
     paddingHorizontal: 12,
+    flexDirection: 'row',
+    // flexWrap: 'wrap',
+    // maxWidth: 50,
   },
   itemIcon: {
     alignItems: 'center',
@@ -24,13 +26,9 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     borderRadius: 10,
     borderWidth: 2,
-    flexDirection: 'row',
     height: 20,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: -3,
-    top: -3,
     width: 20,
+    justifyContent: 'center',
   },
   itemImage: {
     borderRadius: 27,
@@ -40,8 +38,8 @@ const styles = StyleSheet.create({
 });
 
 interface SelectedUserListItemProps {
-  remove: (params: UserType) => void;
-  user: UserType;
+  remove: (params: UserFriendType) => void;
+  user: UserFriendType;
 }
 
 export class SelectedUserListItem extends React.PureComponent<
@@ -53,12 +51,8 @@ export class SelectedUserListItem extends React.PureComponent<
     const { username } = this.props.user;
 
     return (
-      <View>
-        <View style={styles.itemContainer}>
-          <Image
-            style={styles.itemImage}
-            source={{ uri: 'https://facebook.github.io/react/img/logo_og.png' }}
-          />
+      <View style={styles.itemContainer}>
+        <View style={{ paddingRight: 5 }}>
           <TouchableOpacity onPress={this.remove} style={styles.itemIcon}>
             <Icon color="#fff" name="times" size={12} />
           </TouchableOpacity>
@@ -70,15 +64,15 @@ export class SelectedUserListItem extends React.PureComponent<
 }
 
 interface SelectedUserListProps {
-  remove: (params: UserType) => void;
-  data: UserType[];
+  remove: (params: UserFriendType) => void;
+  data: UserFriendType[];
 }
 
 // tslint:disable-next-line:max-classes-per-file
 class SelectedUserList extends React.Component<SelectedUserListProps> {
-  keyExtractor = (item: UserType) => item.id;
+  keyExtractor = (item: UserFriendType) => item.id;
 
-  renderItem = ({ item: user }: { item: UserType }) => (
+  renderItem = ({ item: user }: { item: UserFriendType }) => (
     <SelectedUserListItem user={user} remove={this.props.remove} />
   );
 

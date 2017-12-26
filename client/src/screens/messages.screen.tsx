@@ -1,4 +1,5 @@
-import Buffer from 'buffer/';
+import { ApolloQueryResult } from 'apollo-client-preset';
+import { Buffer } from 'buffer/';
 import update from 'immutability-helper';
 import randomColor from 'randomcolor';
 import * as React from 'react';
@@ -70,7 +71,9 @@ interface CreateMessageParams {
 }
 
 type CreateMessageMutationWithVariables = Mutation & {
-  createMessage: (params: CreateMessageParams) => Promise<Mutation>;
+  createMessage: (
+    params: CreateMessageParams
+  ) => Promise<ApolloQueryResult<CreateMessageMutation>>;
 };
 
 type InputProps = OwnProps &
@@ -214,6 +217,17 @@ export default compose(
     props: props => {
       const data = props.data as GroupQueryWithData;
       const { loading, group, fetchMore, error } = data;
+
+      if (loading || error) {
+        return { loading, group, fetchMore, error };
+      }
+
+      const lastMessageIndex = group.messages.edges.length - 1;
+      const after =
+        lastMessageIndex >= 0
+          ? group.messages.edges[lastMessageIndex].cursor
+          : null;
+
       return {
         loading,
         error,
@@ -222,8 +236,7 @@ export default compose(
           fetchMore({
             variables: {
               first: ITEMS_PER_PAGE,
-              after:
-                group.messages.edges[group.messages.edges.length - 1].cursor,
+              after,
             },
             updateQuery: (previousResult, options) => {
               const fetchMoreResult = options.fetchMoreResult as GroupQueryWithData;

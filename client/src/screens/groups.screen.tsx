@@ -1,13 +1,8 @@
 import * as React from 'react';
-import {
-  ChildProps,
-  compose,
-  graphql,
-  MutationFunc,
-  QueryProps,
-} from 'react-apollo';
+import { ChildProps, graphql, QueryProps } from 'react-apollo';
 import {
   ActivityIndicator,
+  Button,
   FlatList,
   FlatListProperties,
   KeyboardAvoidingView,
@@ -16,12 +11,9 @@ import {
   TouchableHighlight,
   View,
 } from 'react-native';
-import CreateGroupInput from '../components/create-group-input.component';
-import CREATE_GROUP_MUTATION from '../graphql/create-group.mutation';
 import {
-  CreateGroupMutation,
-  CreateGroupMutationVariables,
   UserQuery,
+  UserQueryVariables,
   UserType,
 } from '../graphql/types.query';
 import { USER_QUERY } from '../graphql/user.query';
@@ -50,7 +42,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     flex: 0.7,
   },
+  warning: {
+    textAlign: 'center',
+    padding: 12,
+  },
+  header: {
+    alignItems: 'flex-end',
+    padding: 6,
+    borderColor: '#eee',
+    borderBottomWidth: 1,
+  },
 });
+
+const Header = ({ onPress }: { onPress: () => void }) => (
+  <View style={styles.header}>
+    <Button title="New Group" onPress={onPress} />
+  </View>
+);
 
 interface AGroup {
   name: string;
@@ -77,27 +85,19 @@ class Group extends React.PureComponent<GroupProps> {
   }
 }
 
-type Mutation = MutationFunc<CreateGroupMutation, CreateGroupMutationVariables>;
-
-type CreateGroupMutationWithVariables = Mutation & {
-  createGroup: (params: CreateGroupMutationVariables) => Promise<Mutation>;
-};
-
-type UserQueryWithData = QueryProps & UserQuery;
+type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
 
 interface OwnProps {
   navigation: {
-    navigate: (to: string, params: { groupId: string; title: string }) => void;
+    navigate: (to: string, params?: { groupId: string; title: string }) => void;
   };
   user: UserType;
   loading: boolean;
 }
 
-type InputProps = OwnProps &
-  UserQueryWithData &
-  CreateGroupMutationWithVariables;
+type InputProps = OwnProps & UserQueryWithData;
 
-type GroupsProps = ChildProps<InputProps, UserQuery & CreateGroupMutation>;
+type GroupsProps = ChildProps<InputProps, UserQuery>;
 
 // tslint:disable-next-line:max-classes-per-file
 class Groups extends React.Component<GroupsProps> {
@@ -118,6 +118,15 @@ class Groups extends React.Component<GroupsProps> {
       );
     }
 
+    if (!user.groups.length) {
+      return (
+        <View style={styles.container}>
+          <Header onPress={this.goToNewGroup} />
+          <Text style={styles.warning}>You do not have any group.</Text>
+        </View>
+      );
+    }
+
     return (
       <KeyboardAvoidingView
         behavior={'position'}
@@ -131,7 +140,6 @@ class Groups extends React.Component<GroupsProps> {
           keyExtractor={this.keyExtractor}
           renderItem={this.renderItem}
         />
-        <CreateGroupInput send={this.send} />
       </KeyboardAvoidingView>
     );
   }
@@ -143,6 +151,8 @@ class Groups extends React.Component<GroupsProps> {
     });
   };
 
+  private goToNewGroup = () => this.props.navigation.navigate('NewGroup');
+
   private keyExtractor = (item: AGroup) => item.id;
 
   private renderItem = ({ item }: { item: AGroup }) => (
@@ -152,72 +162,14 @@ class Groups extends React.Component<GroupsProps> {
   private makeFlatList = (
     c: React.Component<FlatListProperties<AGroup>> & FlatList<AGroup>
   ) => (this.flatList = c);
-
-  private send = async (name: string) => {
-    await this.props.createGroup({ name, userId: this.props.user.id });
-    this.flatList.scrollToEnd({ animated: true });
-  };
 }
 
-export default compose(
-  graphql<UserQuery, InputProps>(USER_QUERY, {
-    props: props => {
-      const data = props.data as UserQueryWithData;
-      return data;
-    },
-    options: () => {
-      return { variables: { id: '1' } };
-    },
-  }),
-  graphql<CreateGroupMutation, InputProps>(CREATE_GROUP_MUTATION, {
-    props: props => {
-      const mutate = props.mutate as Mutation;
-
-      return {
-        createGroup({ name, userId }: CreateGroupMutationVariables) {
-          return mutate({
-            variables: { userId, name },
-            optimisticResponse: {
-              __typename: 'Mutation',
-              createGroup: {
-                __typename: 'Group',
-                name,
-                id: '-1',
-              },
-            },
-            update(store, { data: newData }) {
-              if (!newData) {
-                return;
-              }
-
-              const data = store.readQuery({
-                query: USER_QUERY,
-                variables: { id: userId },
-              }) as UserQueryWithData;
-
-              const newGroup = newData.createGroup;
-              const user = data.user;
-              const existingGroups = user.groups;
-
-              if (
-                newGroup.id !== null &&
-                existingGroups.some(g => g.id === newGroup.id)
-              ) {
-                return;
-              }
-
-              const newGroups = [...existingGroups, newGroup];
-              const newUser = { ...user, groups: newGroups };
-
-              store.writeQuery({
-                query: USER_QUERY,
-                variables: { id: userId },
-                data: { ...data, user: newUser },
-              });
-            },
-          });
-        },
-      };
-    },
-  })
-)(Groups);
+export default graphql<UserQuery, InputProps>(USER_QUERY, {
+  props: props => {
+    const data = props.data as UserQueryWithData;
+    return data;
+  },
+  options: () => {
+    return { variables: { id: '21' } };
+  },
+})(Groups);

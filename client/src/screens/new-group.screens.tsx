@@ -2,7 +2,7 @@ import update from 'immutability-helper';
 import _groupBy from 'lodash-es/groupBy';
 import _keys from 'lodash-es/keys';
 import * as React from 'react';
-import { ChildProps, compose, graphql, MutationFunc } from 'react-apollo';
+import { ChildProps, graphql, QueryProps } from 'react-apollo';
 import {
   ActivityIndicator,
   Button,
@@ -16,10 +16,14 @@ import {
   NavigationNavigatorProps,
   NavigationScreenProp,
 } from 'react-navigation';
-import { connect } from 'react-redux';
 import Icon from 'samba6-vector-icons/FontAwesome';
 import SelectedUserList from '../components/selected-user-list.component';
-import { UserType, UserTypeWithFriends } from '../graphql/types.query';
+import {
+  UserFriendType,
+  UserQuery,
+  UserQueryVariables,
+  UserType,
+} from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
 
 const sortObj = (o: { [key: string]: object }) =>
@@ -52,6 +56,7 @@ const styles = StyleSheet.create({
   },
   selected: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   loading: {
     justifyContent: 'center',
@@ -109,10 +114,9 @@ class Cell extends React.PureComponent<CellProps> {
   };
 
   componentWillReceiveProps(nextProps: CellProps) {
-    this.setState(prevState => ({
-      ...prevState,
+    this.setState({
       isSelected: nextProps.isSelected(nextProps.item),
-    }));
+    });
   }
 
   toggle = () => this.props.toggle(this.props.item);
@@ -145,99 +149,115 @@ class Cell extends React.PureComponent<CellProps> {
 interface NavigationState {
   params: {
     mode: string;
-    finalizeGroup: () => void;
-    selected: UserTypeWithFriends[];
+    finalizeGroup: () => undefined;
+    selected: UserFriendType[];
   };
 }
 
-type NavigationProps = NavigationScreenProp<NavigationState, {}>;
 type NavigatorProps = NavigationNavigatorProps<NavigationState>;
-
-type SelectedUsers = UserTypeWithFriends[];
 
 interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
-  user?: UserTypeWithFriends;
-  selected?: SelectedUsers;
-  loading: boolean;
+  user?: UserType;
+  selected?: UserFriendType[];
+  loading?: boolean;
+  error?: {};
 }
 
+type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
+
+type InputProps = UserQueryWithData & OwnProps;
+
+type NewGroupProps = ChildProps<InputProps, UserQuery>;
+
 interface NewGroupState {
-  selected?: SelectedUsers;
-  friends?: { [key: string]: UserType[] };
+  selected: UserFriendType[];
+  friends: { [key: string]: UserFriendType[] };
 }
 
 // tslint:disable-next-line:max-classes-per-file
-class NewGroup extends React.Component<OwnProps> {
-  static navigationOptions = (options: NavigatorProps) => {
-    const navigation = options.navigation as NavigationProps;
-    const { state } = navigation;
-    const isReady = state.params && state.params.mode === 'ready';
+class NewGroup extends React.Component<NewGroupProps> {
+  static navigationOptions = ({ navigation }: NavigatorProps) => {
+    let isReady = false;
+    let onPress = () => void 0;
+
+    if (navigation) {
+      const { state } = navigation;
+      isReady = state.params && state.params.mode === 'ready';
+      onPress =
+        state.params && state.params.finalizeGroup
+          ? state.params.finalizeGroup
+          : onPress;
+    }
 
     return {
       title: 'New Group',
-      headerRight: isReady && (
-        <Button title="Next" onPress={state.params.finalizeGroup} />
-      ),
+      headerRight: isReady && <Button title="Next" onPress={onPress} />,
     };
   };
 
   state: NewGroupState;
 
-  constructor(props: OwnProps) {
+  constructor(props: NewGroupProps) {
     super(props);
+
     this.state = {
-      selected: props.navigation.state.params
-        ? props.navigation.state.params.selected
-        : [],
+      selected:
+        props.navigation && props.navigation.state.params
+          ? props.navigation.state.params.selected
+          : [],
       friends:
         props.user && props.user.friends
-          ? _groupBy<UserType>(props.user.friends, friend =>
-              friend.username.charAt(0).toLocaleUpperCase()
+          ? sortObj(
+              _groupBy<UserFriendType>(props.user.friends, friend =>
+                friend.username.charAt(0).toLocaleUpperCase()
+              )
             )
           : {},
     };
   }
 
   componentDidMount() {
-    this.refreshNavigation(this.state.selected || []);
+    this.refreshNavigation(this.state.selected);
   }
 
-  componentWillReceiveProps(nextProps: OwnProps) {
-    const state: NewGroupState = {};
+  shouldComponentUpdate(nextProps: NewGroupProps, nextState: NewGroupState) {
+    const userUnchanged = this.props.user === nextProps.user;
+    const selectedUnchanged = this.state.selected === nextState.selected;
+    const friendsUnchanged = this.state.friends === nextState.friends;
 
-    if (
-      nextProps.user &&
-      nextProps.user.friends &&
-      nextProps.user !== this.props.user
-    ) {
-      state.friends = sortObj(
-        _groupBy(nextProps.user.friends, friend =>
-          friend.username.charAt(0).toLocaleUpperCase()
-        )
-      );
+    if (userUnchanged && selectedUnchanged && friendsUnchanged) {
+      return false;
     }
 
-    this.setState({
-      ...state,
-      selected: nextProps.selected ? nextProps.selected : [],
-    });
+    return true;
   }
 
+  // componentWillReceiveProps(nextProps: OwnProps) {
+  //   let friends = {};
+
+  //   if (nextProps.user && nextProps.user !== this.props.user) {
+  //     friends = sortObj(
+  //       _groupBy(nextProps.user.friends, friend =>
+  //         friend.username.charAt(0).toLocaleUpperCase()
+  //       )
+  //     );
+  //   }
+
+  //   this.setState({
+  //     friends,
+  //     selected: nextProps.selected || [],
+  //   });
+  // }
+
   componentWillUpdate(_: OwnProps, nextState: NewGroupState) {
-    if (
-      nextState.selected &&
-      this.state.selected &&
-      nextState.selected.length !== this.state.selected.length
-    ) {
+    if (nextState.selected.length !== this.state.selected.length) {
       this.refreshNavigation(nextState.selected);
     }
   }
 
   render() {
-    const { user, loading } = this.props;
-
-    if (loading && !user) {
+    if (this.props.loading) {
       return (
         <View style={[styles.loading, styles.container]}>
           <ActivityIndicator />
@@ -245,21 +265,19 @@ class NewGroup extends React.Component<OwnProps> {
       );
     }
 
-    const data = this.state.friends as { [key: string]: UserType[] };
+    const data = this.state.friends;
 
     return (
       <View style={styles.container}>
-        {this.state.selected &&
-          this.state.selected.length && (
-            <View style={styles.selected}>
-              <SelectedUserList
-                data={this.state.selected}
-                remove={this.toggle}
-              />
-            </View>
-          )}
+        {this.state.selected.length ? (
+          <View style={styles.selected}>
+            <SelectedUserList data={this.state.selected} remove={this.toggle} />
+          </View>
+        ) : (
+          <View />
+        )}
 
-        {_keys(this.state.friends).length && (
+        {_keys(data).length ? (
           <AlphabetListView
             style={{ flex: 1 }}
             data={data}
@@ -270,37 +288,33 @@ class NewGroup extends React.Component<OwnProps> {
             sectionHeader={SectionHeader}
             sectionHeaderHeight={22.5}
           />
+        ) : (
+          <View />
         )}
       </View>
     );
   }
 
-  refreshNavigation = (selected: SelectedUsers) => {
+  refreshNavigation = (selected: Array<{}>) => {
     this.props.navigation.setParams({
-      mode: selected && selected.length ? 'ready' : undefined,
+      mode: selected.length ? 'ready' : undefined,
       finalizeGroup: this.finalizeGroup,
     });
   };
 
-  finalizeGroup = () =>
-    this.props.navigation.navigate('FinalizeGroup', {
-      selected: this.state.selected || [],
-      friendCount:
-        (this.props.user &&
-          this.props.user.friends &&
-          this.props.user.friends.length) ||
-        0,
+  finalizeGroup = () => {
+    return this.props.navigation.navigate('FinalizeGroup', {
+      selected: this.state.selected,
+      friendCount: (this.props.user && this.props.user.friends.length) || 0,
       userId: (this.props.user && this.props.user.id) || '-1',
     });
+  };
 
-  isSelected = (user: UserTypeWithFriends) => -this.getUserIndex(user) - 1;
+  isSelected = (user: UserType) => -this.getUserIndex(user) - 1;
 
-  getUserIndex = (user: UserTypeWithFriends) =>
-    (this.state.selected && this.state.selected.indexOf(user)) || -1;
-
-  toggle = (user: UserTypeWithFriends) => {
+  toggle = (user: UserType) => {
     const index = this.getUserIndex(user);
-    const selected = this.state.selected as UserTypeWithFriends[];
+    const selected = this.state.selected;
 
     this.setState(prevState => ({
       ...prevState,
@@ -310,6 +324,23 @@ class NewGroup extends React.Component<OwnProps> {
           : [...selected, user],
     }));
   };
+
+  private getUserIndex = (user: UserType) => this.state.selected.indexOf(user);
 }
 
-export default NewGroup;
+export default graphql<UserQuery, InputProps>(USER_QUERY, {
+  props: props => {
+    const data = props.data as UserQueryWithData;
+    const { user, loading, error } = data;
+
+    return {
+      user,
+      loading,
+      error,
+      ...props.ownProps,
+    };
+  },
+  options: {
+    variables: { id: '21' },
+  },
+})(NewGroup);

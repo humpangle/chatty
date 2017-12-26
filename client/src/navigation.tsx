@@ -10,8 +10,10 @@ import {
   TabNavigator,
 } from 'react-navigation';
 import { connect } from 'react-redux';
+import FinalizeGroup from './screens/finalize-group.screen';
 import Groups from './screens/groups.screen';
 import Messages from './screens/messages.screen';
+import NewGroup from './screens/new-group.screens';
 
 const styles = StyleSheet.create({
   container: {
@@ -54,6 +56,12 @@ const MainScreenNavigator = TabNavigator({
 const AppNavigator = StackNavigator({
   Main: { screen: MainScreenNavigator },
   Messages: { screen: Messages },
+  NewGroup: {
+    screen: NewGroup,
+  },
+  FinalizeGroup: {
+    screen: FinalizeGroup,
+  },
 });
 
 const firstAction = AppNavigator.router.getActionForPathAndParams('Main');

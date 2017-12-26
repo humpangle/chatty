@@ -69,12 +69,19 @@ db.sync({ force: true }).then(() =>
         })
       )
       .then(userPromises => {
-        Promise.all(userPromises).then(users => {
-          users.forEach((current, i) => {
-            users.forEach((user, j) => {
-              if (i !== j) {
-                current.addFriend(user);
-              }
+        return Promise.all(userPromises).then(users => {
+          User.create({
+            email: faker.internet.email(),
+            username: faker.internet.userName(),
+            password: faker.internet.password()
+          }).then(newUser => {
+            users.forEach((current, i) => {
+              newUser.addFriend(current);
+              users.forEach((user, j) => {
+                if (i !== j) {
+                  current.addFriend(user);
+                }
+              });
             });
           });
         });

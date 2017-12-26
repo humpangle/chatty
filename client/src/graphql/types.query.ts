@@ -2,11 +2,16 @@ export interface UserQuery {
   user: UserType;
 }
 
+export interface UserQueryVariables {
+  id: string;
+}
+
 export interface UserType {
   id: string;
   email: string;
   username: string;
   groups: UserGroupType[];
+  friends: UserFriendType[];
 }
 
 export interface UserGroupType {
@@ -16,12 +21,21 @@ export interface UserGroupType {
   messages: MessageType[];
 }
 
-export type UserWithFriendsType = UserType & {
-  friends?: UserType[];
-};
+export interface UserFriendType {
+  id: string;
+  username: string;
+}
 
 export interface GroupQuery {
   group: GroupType;
+}
+
+export interface GroupQueryVariables {
+  groupId: string;
+  first?: number;
+  last?: number;
+  after?: string;
+  before?: string;
 }
 
 export interface GroupType {
@@ -64,10 +78,11 @@ export interface CreateMessageMutationVariables {
 }
 
 export interface CreateGroupMutation {
-  createGroup: GroupType;
+  createGroup: UserGroupType;
 }
 
 export interface CreateGroupMutationVariables {
   name: string;
   userId: string;
+  userIds: string[];
 }
