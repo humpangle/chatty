@@ -42,3 +42,18 @@ config.expo.extra = getClientEnvironment();
 console.log('Configuration contents generated, writing to app.json');
 
 fs.writeFileSync('app.json', JSON.stringify(config, null, 2), 'utf8');
+
+const copydir = require('copy-dir');
+const from = path.resolve('.', 'src', 'images')
+const lib = path.resolve('.', 'lib')
+const to = path.resolve(lib, 'images')
+
+if (!fs.existsSync(to)) {
+  if (!fs.existsSync(lib)) {
+    fs.mkdirSync(lib)
+  }
+  fs.mkdirSync(to)
+}
+
+console.log(`Syncing images from: ${from} to: ${to}`)
+copydir.sync(from, to)

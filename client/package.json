@@ -21,6 +21,7 @@
     "@types/react-test-renderer": "^16.0.0",
     "@types/samba6-vector-icons": "https://github.com/samba6/vector-icons-types.git",
     "@types/ws": "^3.2.1",
+    "copy-dir": "^0.3.0",
     "dotenv": "^4.0.0",
     "enzyme": "^3.2.0",
     "enzyme-adapter-react-16": "^1.1.1",

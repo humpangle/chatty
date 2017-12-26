@@ -158,10 +158,6 @@ type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
 interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
-  user?: UserType;
-  selected?: UserFriendType[];
-  loading?: boolean;
-  error?: {};
 }
 
 type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;

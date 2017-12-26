@@ -1,22 +1,25 @@
+import moment from 'moment';
 import * as React from 'react';
-import { ChildProps, graphql, QueryProps } from 'react-apollo';
+import { ChildProps, graphql } from 'react-apollo';
 import {
   ActivityIndicator,
   Button,
   FlatList,
   FlatListProperties,
-  KeyboardAvoidingView,
+  Image,
   StyleSheet,
   Text,
   TouchableHighlight,
   View,
 } from 'react-native';
+import Icon from 'samba6-vector-icons/FontAwesome';
 import {
+  UserGroupType,
   UserQuery,
-  UserQueryVariables,
-  UserType,
+  UserQueryWithData,
 } from '../graphql/types.query';
 import { USER_QUERY } from '../graphql/user.query';
+import reactLogo from '../images/react.png';
 
 const styles = StyleSheet.create({
   container: {
@@ -52,7 +55,43 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
     borderBottomWidth: 1,
   },
+  groupTextContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    paddingLeft: 6,
+  },
+  groupText: {
+    color: '#8c8c8c',
+  },
+  groupImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+  },
+  groupTitleContainer: {
+    flexDirection: 'row',
+  },
+  groupLastUpdated: {
+    flex: 0.3,
+    color: '#8c8c8c',
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  groupUsername: {
+    paddingVertical: 4,
+  },
 });
+
+const formatCreatedAt = (createdAt: string) => {
+  return moment(createdAt).calendar(undefined, {
+    sameDay: '[Today]',
+    nextDay: '[Tomorrow]',
+    nextWeek: 'dddd',
+    lastDay: '[Yesterday]',
+    lastWeek: 'dddd',
+    sameElse: 'DD/MM/YYYY',
+  });
+};
 
 const Header = ({ onPress }: { onPress: () => void }) => (
   <View style={styles.header}>
@@ -60,39 +99,47 @@ const Header = ({ onPress }: { onPress: () => void }) => (
   </View>
 );
 
-interface AGroup {
-  name: string;
-  id: string;
-}
-
 interface GroupProps {
-  group: AGroup;
-  goToMessages: (params: AGroup) => void;
+  group: UserGroupType;
+  goToMessages: (params: UserGroupType) => void;
 }
 
 class Group extends React.PureComponent<GroupProps> {
   render() {
-    const { id, name } = this.props.group;
-    const goToMessages = () => this.props.goToMessages(this.props.group);
+    const { id, name, messages: { edges } } = this.props.group;
 
     return (
-      <TouchableHighlight key={id} onPress={goToMessages}>
+      <TouchableHighlight key={id} onPress={this.goToMessages}>
         <View style={styles.groupContainer}>
-          <Text style={styles.groupName}>{name}</Text>
+          <Image style={styles.groupImage} source={reactLogo} />
+          <View style={styles.groupTextContainer}>
+            <View style={styles.groupTitleContainer}>
+              <Text style={styles.groupName}>{name}</Text>
+              <Text style={styles.groupLastUpdated}>
+                {edges.length ? formatCreatedAt(edges[0].node.createdAt) : ''}
+              </Text>
+            </View>
+
+            <Text style={styles.groupUsername}>
+              {edges.length ? edges[0].node.from.username : ''}
+            </Text>
+            <Text style={styles.groupText} numberOfLines={1}>
+              {edges.length ? edges[0].node.text : ''}
+            </Text>
+          </View>
+          <Icon name="angle-right" size={24} color="#8c8c8c" />
         </View>
       </TouchableHighlight>
     );
   }
-}
 
-type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
+  private goToMessages = () => this.props.goToMessages(this.props.group);
+}
 
 interface OwnProps {
   navigation: {
     navigate: (to: string, params?: { groupId: string; title: string }) => void;
   };
-  user: UserType;
-  loading: boolean;
 }
 
 type InputProps = OwnProps & UserQueryWithData;
@@ -105,18 +152,18 @@ class Groups extends React.Component<GroupsProps> {
     title: 'Chats',
   };
 
-  private flatList: FlatList<AGroup>;
+  private flatList: FlatList<UserGroupType>;
 
   render() {
-    const { loading, user } = this.props;
-
-    if (loading) {
+    if (this.props.loading) {
       return (
         <View style={[styles.loading, styles.container]}>
           <ActivityIndicator />
         </View>
       );
     }
+
+    const { user, networkStatus } = this.props;
 
     if (!user.groups.length) {
       return (
@@ -128,23 +175,21 @@ class Groups extends React.Component<GroupsProps> {
     }
 
     return (
-      <KeyboardAvoidingView
-        behavior={'position'}
-        contentContainerStyle={styles.container}
-        keyboardVerticalOffset={100}
-        style={styles.container}
-      >
+      <View style={styles.container}>
+        <Header onPress={this.goToNewGroup} />
         <FlatList
           ref={this.makeFlatList}
           data={user.groups}
           keyExtractor={this.keyExtractor}
           renderItem={this.renderItem}
+          onRefresh={this.onRefresh}
+          refreshing={networkStatus === 4}
         />
-      </KeyboardAvoidingView>
+      </View>
     );
   }
 
-  private goToMessages = (group: AGroup) => {
+  private goToMessages = (group: UserGroupType) => {
     this.props.navigation.navigate('Messages', {
       groupId: group.id,
       title: group.name,
@@ -153,15 +198,18 @@ class Groups extends React.Component<GroupsProps> {
 
   private goToNewGroup = () => this.props.navigation.navigate('NewGroup');
 
-  private keyExtractor = (item: AGroup) => item.id;
+  private keyExtractor = (item: UserGroupType) => item.id;
 
-  private renderItem = ({ item }: { item: AGroup }) => (
+  private renderItem = ({ item }: { item: UserGroupType }) => (
     <Group group={item} goToMessages={this.goToMessages} />
   );
 
   private makeFlatList = (
-    c: React.Component<FlatListProperties<AGroup>> & FlatList<AGroup>
+    c: React.Component<FlatListProperties<UserGroupType>> &
+      FlatList<UserGroupType>
   ) => (this.flatList = c);
+
+  private onRefresh = () => this.props.refetch();
 }
 
 export default graphql<UserQuery, InputProps>(USER_QUERY, {

@@ -1,6 +1,10 @@
+import { QueryProps } from 'react-apollo';
+
 export interface UserQuery {
   user: UserType;
 }
+
+export type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
 
 export interface UserQueryVariables {
   id: string;
@@ -18,12 +22,16 @@ export interface UserGroupType {
   id: string;
   name: string;
   users: UserType[];
-  messages: MessageType[];
+  messages: UserGroupMessageType;
 }
 
 export interface UserFriendType {
   id: string;
   username: string;
+}
+
+export interface UserGroupMessageType {
+  edges: MessageEdge[];
 }
 
 export interface GroupQuery {

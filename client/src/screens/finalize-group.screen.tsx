@@ -32,7 +32,6 @@ import {
   UserGroupType,
   UserQuery,
   UserQueryVariables,
-  UserType,
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
 
@@ -128,9 +127,6 @@ interface FinalizeGroupState {
 interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
   selected?: UserFriendType[];
-  loading?: boolean;
-  error?: {};
-  user?: UserType;
   createGroup: (
     name: string,
     userIds: string[]
@@ -244,7 +240,7 @@ class FinalizeGroup extends React.Component<FinalizeGroupProps> {
       name,
     }));
 
-  private pop = () => this.props.navigation.goBack();
+  // private pop = () => this.props.navigation.goBack();
 
   private remove = (user: UserFriendType) => {
     const index = this.state.selected.indexOf(user);

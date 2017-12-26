@@ -1,6 +1,7 @@
 import { ApolloQueryResult } from 'apollo-client-preset';
 import { Buffer } from 'buffer/';
 import update from 'immutability-helper';
+import moment from 'moment';
 import randomColor from 'randomcolor';
 import * as React from 'react';
 import {
@@ -30,7 +31,12 @@ import {
   GroupQuery,
   GroupType,
   MessageEdge,
+  UserQueryWithData,
 } from '../graphql/types.query';
+import USER_QUERY from '../graphql/user.query';
+
+// mock user id - will be removed when auth is implemented
+const mockUserId = '1';
 
 const styles = StyleSheet.create({
   container: {
@@ -52,9 +58,6 @@ type NavigationProps = NavigationProp<NavigationState, {}>;
 type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
 type OwnProps = NavigatorProps & {
-  loading?: boolean;
-  group?: GroupType;
-  error?: {};
   loadMoreEntries: () => undefined;
 };
 
@@ -182,7 +185,7 @@ class Messages extends React.Component<MessagesProps> {
 
     await this.props.createMessage({
       text,
-      userId: '1',
+      userId: mockUserId,
     });
 
     this.flatList.scrollToIndex({
@@ -219,7 +222,7 @@ export default compose(
       const { loading, group, fetchMore, error } = data;
 
       if (loading || error) {
-        return { loading, group, fetchMore, error };
+        return { loading, error };
       }
 
       const lastMessageIndex = group.messages.edges.length - 1;
@@ -268,6 +271,7 @@ export default compose(
       };
     },
   }),
+
   graphql<CreateMessageMutation, InputProps>(CREATE_MESSAGE_MUTATION, {
     props: props => {
       const mutate = props.mutate as Mutation;
@@ -276,20 +280,19 @@ export default compose(
         (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
         '-1';
       return {
-        ...ownProps,
-        createMessage: (params: CreateMessageParams) => {
+        createMessage: ({ userId, text }: CreateMessageParams) => {
           return mutate({
-            variables: { ...params, groupId },
+            variables: { userId, text, groupId },
             optimisticResponse: {
               __typename: 'Mutation',
               createMessage: {
                 __typename: 'Message',
                 id: '-1',
-                text: params.text,
+                text,
                 createdAt: new Date().toISOString(),
                 from: {
                   __typename: 'User',
-                  id: params.userId,
+                  id: userId,
                   username: 'Justyn.Kautzer',
                 },
                 to: {
@@ -304,7 +307,7 @@ export default compose(
                 return;
               }
 
-              const storeData = store.readQuery({
+              const groupData = store.readQuery({
                 query: GROUP_QUERY,
                 variables: {
                   groupId,
@@ -316,7 +319,7 @@ export default compose(
 
               if (
                 newMessage.id &&
-                storeData.group.messages.edges.some(
+                groupData.group.messages.edges.some(
                   m => m.node.id === newMessage.id
                 )
               ) {
@@ -337,12 +340,61 @@ export default compose(
                   groupId,
                   first: ITEMS_PER_PAGE,
                 },
-                data: update(storeData, {
+                data: update(groupData, {
                   group: {
                     messages: {
                       edges: {
                         $unshift: [newMessageAsEdge],
                       },
+                    },
+                  },
+                }),
+              });
+
+              const userData = store.readQuery({
+                query: USER_QUERY,
+                variables: {
+                  id: '21',
+                },
+              }) as UserQueryWithData;
+
+              let grpIndex;
+
+              const userGrp = userData.user.groups.find((g, i) => {
+                if (g.id === groupId) {
+                  grpIndex = i;
+                  return true;
+                }
+                return false;
+              });
+
+              if (
+                !userGrp ||
+                (userGrp.messages.edges.length &&
+                  moment(userGrp.messages.edges[0].node.createdAt).isAfter(
+                    moment(newMessage.createdAt)
+                  ))
+              ) {
+                return;
+              }
+
+              const updatedUserGrp = update(userGrp, {
+                messages: {
+                  edges: {
+                    $unshift: [newMessageAsEdge],
+                  },
+                },
+              });
+
+              store.writeQuery({
+                query: USER_QUERY,
+                variables: {
+                  id: '21',
+                },
+                data: update(userData, {
+                  user: {
+                    groups: {
+                      $splice: [[grpIndex, 1, updatedUserGrp]],
                     },
                   },
                 }),
