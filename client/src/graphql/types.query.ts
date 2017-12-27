@@ -76,6 +76,7 @@ export interface MessageType {
   from: UserType;
   createdAt: string;
   text: string;
+  to: { id: string };
 }
 
 export interface CreateMessageMutation {

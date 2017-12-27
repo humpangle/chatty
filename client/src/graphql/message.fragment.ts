@@ -9,6 +9,9 @@ export const MESSAGE_FRAGMENT = gql`
     }
     createdAt
     text
+    to {
+      id
+    }
   }
 `;
 

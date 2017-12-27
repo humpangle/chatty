@@ -12,6 +12,7 @@ import { ApolloProvider } from 'react-apollo';
 import { Provider } from 'react-redux';
 import { combineReducers, createStore } from 'redux';
 import { composeWithDevTools } from 'redux-devtools-extension';
+import { SubscriptionClient } from 'subscriptions-transport-ws';
 import AppWithNavigationState, { navigationReducer } from './navigation';
 
 const store = createStore(
@@ -28,13 +29,12 @@ const HTTP_URL = `${API_URL}/graphql`;
 
 const WEBSOCKET_URL = `${API_URL.replace(/https?/, 'ws')}/subscriptions`;
 
-const wsLink = new WebSocketLink({
-  uri: WEBSOCKET_URL,
-  options: {
-    reconnect: true,
-    connectionParams: {},
-  },
-}) as ApolloLink;
+export const wsClient = new SubscriptionClient(WEBSOCKET_URL, {
+  reconnect: true,
+  connectionParams: {},
+});
+
+const wsLink = new WebSocketLink(wsClient) as ApolloLink;
 
 const httpLink = new HttpLink({ uri: HTTP_URL }) as ApolloLink;
 

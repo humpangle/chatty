@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer/';
 import update from 'immutability-helper';
 import moment from 'moment';
 import randomColor from 'randomcolor';
@@ -32,6 +31,7 @@ import {
   UserQueryWithData,
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
+import { messageToEdge } from '../utils';
 
 // mock user id - will be removed when auth is implemented
 const mockUserId = '1';
@@ -57,6 +57,7 @@ type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
 type OwnProps = NavigatorProps & {
   loadMoreEntries: () => undefined;
+  subscribeToNewMessages: () => () => undefined;
 };
 
 type InputProps = OwnProps & GroupQueryWithData & CreateMessageMutationProps;
@@ -83,6 +84,8 @@ class Messages extends React.Component<MessagesProps> {
 
   private flatList: FlatList<GroupType>;
 
+  private newMessageSubscription: () => undefined;
+
   componentWillReceiveProps(nextProps: MessagesProps) {
     if (nextProps.group && nextProps.group.users) {
       const usernameColors = { ...this.state.usernameColors };
@@ -95,10 +98,24 @@ class Messages extends React.Component<MessagesProps> {
         return { ...prevState, usernameColors };
       });
     }
+
+    if (!nextProps.group && this.newMessageSubscription) {
+      this.newMessageSubscription();
+    }
+
+    if (nextProps.group) {
+      if (this.newMessageSubscription) {
+        this.newMessageSubscription();
+      }
+
+      this.newMessageSubscription = nextProps.subscribeToNewMessages();
+    }
   }
 
-  componentDidMount() {
-    this.subscribeToNewMessages();
+  componentWillUnmount() {
+    if (this.newMessageSubscription) {
+      this.newMessageSubscription();
+    }
   }
 
   render() {
@@ -193,26 +210,6 @@ class Messages extends React.Component<MessagesProps> {
       }));
     }
   };
-
-  private subscribeToNewMessages = () => {
-    this.props.subscribeToMore({
-      document: MESSAGE_ADDED_SUBSCRIPTION,
-
-      variables: {
-        userId: mockUserId,
-        groupIds: [
-          this.props.navigation
-            ? this.props.navigation.state.params.groupId
-            : '-1',
-        ],
-      },
-
-      updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
-        return updateGroupQueryWithMessage(previous, data.messageAdded)
-          .updatedGroup;
-      },
-    });
-  };
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -220,11 +217,16 @@ const ITEMS_PER_PAGE = 10;
 export default compose(
   graphql<GroupQuery, InputProps>(GROUP_QUERY, {
     props: props => {
-      const data = props.data as GroupQueryWithData;
-      const { loading, group, fetchMore, error, subscribeToMore } = data;
+      const {
+        loading,
+        group,
+        fetchMore,
+        error,
+        subscribeToMore,
+      } = props.data as GroupQueryWithData;
 
       if (loading || error) {
-        return { loading, error, subscribeToMore };
+        return { loading, error };
       }
 
       const lastMessageIndex = group.messages.edges.length - 1;
@@ -233,11 +235,12 @@ export default compose(
           ? group.messages.edges[lastMessageIndex].cursor
           : null;
 
+      const navigation = props.ownProps.navigation;
+
       return {
         loading,
         error,
         group,
-        subscribeToMore,
         loadMoreEntries: () =>
           fetchMore({
             variables: {
@@ -259,6 +262,20 @@ export default compose(
                   },
                 },
               });
+            },
+          }),
+        subscribeToNewMessages: () =>
+          subscribeToMore({
+            document: MESSAGE_ADDED_SUBSCRIPTION,
+
+            variables: {
+              userId: mockUserId,
+              groupIds: [navigation ? navigation.state.params.groupId : '-1'],
+            },
+
+            updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
+              return updateGroupQueryWithMessage(previous, data.messageAdded)
+                .updatedGroup;
             },
           }),
       };
@@ -396,11 +413,11 @@ export default compose(
 
 const updateGroupQueryWithMessage = (
   groupData: GroupQuery,
-  newMessage: MessageType
+  message: MessageType
 ) => {
   if (
-    newMessage.id &&
-    groupData.group.messages.edges.some(m => m.node.id === newMessage.id)
+    message.id &&
+    groupData.group.messages.edges.some(m => m.node.id === message.id)
   ) {
     return {
       updatedGroup: undefined,
@@ -408,11 +425,7 @@ const updateGroupQueryWithMessage = (
     };
   }
 
-  const newMessageAsEdge = {
-    __typename: 'MessageEdge',
-    node: newMessage,
-    cursor: Buffer.from(newMessage.id.toString()).toString('base64'),
-  };
+  const newMessageAsEdge = messageToEdge(message);
 
   return {
     updatedGroup: update(groupData, {

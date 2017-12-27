@@ -6,7 +6,7 @@ import { executableSchema } from "./data/schema";
 import { SubscriptionServer } from "subscriptions-transport-ws";
 import { execute, subscribe } from "graphql";
 
-const GRAPHQL_PORT = 8081;
+const GRAPHQL_PORT = 8082;
 const GRAPHQL_PATH = "/graphql";
 const SUBSCRIPTIONS_PATH = "/subscriptions";
 // const GRAPHQL_HOST = "192.168.178.42"; //from ifconfig on ubuntu
