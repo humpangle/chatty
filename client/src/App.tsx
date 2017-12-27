@@ -24,15 +24,19 @@ const API_URL = Expo.Constants.manifest.extra
   ? Expo.Constants.manifest.extra.REACT_NATIVE_APP_API_URL
   : '';
 
+const HTTP_URL = `${API_URL}/graphql`;
+
+const WEBSOCKET_URL = `${API_URL.replace(/https?/, 'ws')}/subscriptions`;
+
 const wsLink = new WebSocketLink({
-  uri: `${API_URL.replace(/https?/, 'ws')}/subscriptions`,
+  uri: WEBSOCKET_URL,
   options: {
     reconnect: true,
     connectionParams: {},
   },
-});
+}) as ApolloLink;
 
-const httpLink = new HttpLink({ uri: `${API_URL}/graphql` }) as ApolloLink;
+const httpLink = new HttpLink({ uri: HTTP_URL }) as ApolloLink;
 
 let link = split(
   ({ query }) => {
@@ -63,18 +67,20 @@ if (process.env.NODE_ENV !== 'production') {
       `\n=====end=Apollo graphql operation: ${operationName}===================`
     );
 
-    return forward && forward(operation) && forward(operation).map
-      ? forward(operation).map(result => {
-          // tslint:disable-next-line:no-console
-          console.log(
-            '\n\n\n==============================Received result from: ',
-            operationName,
-            '\n',
-            result,
-            `\n=====end=Received result from: ${operationName}=================`
-          );
-          return result;
-        })
+    return forward && forward(operation)
+      ? forward(operation).map
+        ? forward(operation).map(result => {
+            // tslint:disable-next-line:no-console
+            console.log(
+              '\n\n\n==============================Received result from: ',
+              operationName,
+              '\n',
+              result,
+              `\n=====end=Received result from: ${operationName}=================`
+            );
+            return result;
+          })
+        : forward(operation)
       : null;
   });
 

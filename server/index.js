@@ -9,7 +9,8 @@ import { execute, subscribe } from "graphql";
 const GRAPHQL_PORT = 8081;
 const GRAPHQL_PATH = "/graphql";
 const SUBSCRIPTIONS_PATH = "/subscriptions";
-const GRAPHQL_HOST = "192.168.178.42";
+// const GRAPHQL_HOST = "192.168.178.42"; //from ifconfig on ubuntu
+const GRAPHQL_HOST = "0.0.0.0";
 
 const app = express();
 

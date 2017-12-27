@@ -395,14 +395,12 @@ export default compose(
 )(Messages);
 
 const updateGroupQueryWithMessage = (
-  someGroupData: GroupQuery,
-  someNewMessage: MessageType
+  groupData: GroupQuery,
+  newMessage: MessageType
 ) => {
   if (
-    someNewMessage.id &&
-    someGroupData.group.messages.edges.some(
-      m => m.node.id === someNewMessage.id
-    )
+    newMessage.id &&
+    groupData.group.messages.edges.some(m => m.node.id === newMessage.id)
   ) {
     return {
       updatedGroup: undefined,
@@ -410,22 +408,22 @@ const updateGroupQueryWithMessage = (
     };
   }
 
-  const someNewMessageAsEdge = {
+  const newMessageAsEdge = {
     __typename: 'MessageEdge',
-    node: someNewMessage,
-    cursor: Buffer.from(someNewMessage.id.toString()).toString('base64'),
+    node: newMessage,
+    cursor: Buffer.from(newMessage.id.toString()).toString('base64'),
   };
 
   return {
-    updatedGroup: update(someGroupData, {
+    updatedGroup: update(groupData, {
       group: {
         messages: {
           edges: {
-            $unshift: [someNewMessageAsEdge],
+            $unshift: [newMessageAsEdge],
           },
         },
       },
     }),
-    updatedMessage: someNewMessageAsEdge,
+    updatedMessage: newMessageAsEdge,
   };
 };
