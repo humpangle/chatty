@@ -1,4 +1,5 @@
-import { QueryProps } from 'react-apollo';
+import { ApolloQueryResult } from 'apollo-client-preset';
+import { MutationFunc, QueryProps } from 'react-apollo';
 
 export interface UserQuery {
   user: UserType;
@@ -37,6 +38,8 @@ export interface UserGroupMessageType {
 export interface GroupQuery {
   group: GroupType;
 }
+
+export type GroupQueryWithData = QueryProps<GroupQueryVariables> & GroupQuery;
 
 export interface GroupQueryVariables {
   groupId: string;
@@ -83,6 +86,22 @@ export interface CreateMessageMutationVariables {
   text: string;
   userId: string;
   groupId: string;
+}
+
+export type CreateMessageMutationFunc = MutationFunc<
+  CreateMessageMutation,
+  CreateMessageMutationVariables
+>;
+
+export type CreateMessageMutationProps = CreateMessageMutationFunc & {
+  createMessage: (
+    params: CreateMessageParams
+  ) => Promise<ApolloQueryResult<CreateMessageMutation>>;
+};
+
+export interface CreateMessageParams {
+  text: string;
+  userId: string;
 }
 
 export interface CreateGroupMutation {

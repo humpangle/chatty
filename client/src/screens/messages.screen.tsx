@@ -1,16 +1,9 @@
-import { ApolloQueryResult } from 'apollo-client-preset';
 import { Buffer } from 'buffer/';
 import update from 'immutability-helper';
 import moment from 'moment';
 import randomColor from 'randomcolor';
 import * as React from 'react';
-import {
-  ChildProps,
-  compose,
-  graphql,
-  MutationFunc,
-  QueryProps,
-} from 'react-apollo';
+import { ChildProps, compose, graphql } from 'react-apollo';
 import {
   ActivityIndicator,
   FlatList,
@@ -25,12 +18,17 @@ import MessageInput from '../components/message-input.component';
 import Message from '../components/message.component';
 import CREATE_MESSAGE_MUTATION from '../graphql/create-message.mutation';
 import { GROUP_QUERY } from '../graphql/group.query';
+import MESSAGE_ADDED_SUBSCRIPTION from '../graphql/message-added.subscription';
 import {
   CreateMessageMutation,
-  CreateMessageMutationVariables,
+  CreateMessageMutationFunc,
+  CreateMessageMutationProps,
+  CreateMessageParams,
   GroupQuery,
+  GroupQueryWithData,
   GroupType,
   MessageEdge,
+  MessageType,
   UserQueryWithData,
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
@@ -61,27 +59,7 @@ type OwnProps = NavigatorProps & {
   loadMoreEntries: () => undefined;
 };
 
-type GroupQueryWithData = GroupQuery & QueryProps;
-
-type Mutation = MutationFunc<
-  CreateMessageMutation,
-  CreateMessageMutationVariables
->;
-
-interface CreateMessageParams {
-  text: string;
-  userId: string;
-}
-
-type CreateMessageMutationWithVariables = Mutation & {
-  createMessage: (
-    params: CreateMessageParams
-  ) => Promise<ApolloQueryResult<CreateMessageMutation>>;
-};
-
-type InputProps = OwnProps &
-  GroupQueryWithData &
-  CreateMessageMutationWithVariables;
+type InputProps = OwnProps & GroupQueryWithData & CreateMessageMutationProps;
 
 type MessagesProps = ChildProps<InputProps, GroupQuery & CreateMessageMutation>;
 
@@ -117,6 +95,10 @@ class Messages extends React.Component<MessagesProps> {
         return { ...prevState, usernameColors };
       });
     }
+  }
+
+  componentDidMount() {
+    this.subscribeToNewMessages();
   }
 
   render() {
@@ -202,14 +184,34 @@ class Messages extends React.Component<MessagesProps> {
         ...previousState,
         loadingMoreEntries: true,
       }));
+
+      await loadMoreEntries();
+
+      this.setState(previousState => ({
+        ...previousState,
+        loadingMoreEntries: false,
+      }));
     }
+  };
 
-    await loadMoreEntries();
+  private subscribeToNewMessages = () => {
+    this.props.subscribeToMore({
+      document: MESSAGE_ADDED_SUBSCRIPTION,
 
-    this.setState(previousState => ({
-      ...previousState,
-      loadingMoreEntries: false,
-    }));
+      variables: {
+        userId: mockUserId,
+        groupIds: [
+          this.props.navigation
+            ? this.props.navigation.state.params.groupId
+            : '-1',
+        ],
+      },
+
+      updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
+        return updateGroupQueryWithMessage(previous, data.messageAdded)
+          .updatedGroup;
+      },
+    });
   };
 }
 
@@ -219,10 +221,10 @@ export default compose(
   graphql<GroupQuery, InputProps>(GROUP_QUERY, {
     props: props => {
       const data = props.data as GroupQueryWithData;
-      const { loading, group, fetchMore, error } = data;
+      const { loading, group, fetchMore, error, subscribeToMore } = data;
 
       if (loading || error) {
-        return { loading, error };
+        return { loading, error, subscribeToMore };
       }
 
       const lastMessageIndex = group.messages.edges.length - 1;
@@ -235,6 +237,7 @@ export default compose(
         loading,
         error,
         group,
+        subscribeToMore,
         loadMoreEntries: () =>
           fetchMore({
             variables: {
@@ -274,7 +277,7 @@ export default compose(
 
   graphql<CreateMessageMutation, InputProps>(CREATE_MESSAGE_MUTATION, {
     props: props => {
-      const mutate = props.mutate as Mutation;
+      const mutate = props.mutate as CreateMessageMutationFunc;
       const ownProps = props.ownProps;
       const groupId =
         (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
@@ -313,26 +316,18 @@ export default compose(
                   groupId,
                   first: ITEMS_PER_PAGE,
                 },
-              }) as GroupQueryWithData;
+              }) as GroupQuery;
 
               const newMessage = data.createMessage;
 
-              if (
-                newMessage.id &&
-                groupData.group.messages.edges.some(
-                  m => m.node.id === newMessage.id
-                )
-              ) {
+              const {
+                updatedGroup,
+                updatedMessage,
+              } = updateGroupQueryWithMessage(groupData, newMessage);
+
+              if (!updatedGroup) {
                 return;
               }
-
-              const newMessageAsEdge = {
-                __typename: 'MessageEdge',
-                node: newMessage,
-                cursor: Buffer.from(newMessage.id.toString()).toString(
-                  'base64'
-                ),
-              };
 
               store.writeQuery({
                 query: GROUP_QUERY,
@@ -340,21 +335,13 @@ export default compose(
                   groupId,
                   first: ITEMS_PER_PAGE,
                 },
-                data: update(groupData, {
-                  group: {
-                    messages: {
-                      edges: {
-                        $unshift: [newMessageAsEdge],
-                      },
-                    },
-                  },
-                }),
+                data: updatedGroup,
               });
 
               const userData = store.readQuery({
                 query: USER_QUERY,
                 variables: {
-                  id: '21',
+                  id: userId,
                 },
               }) as UserQueryWithData;
 
@@ -381,7 +368,7 @@ export default compose(
               const updatedUserGrp = update(userGrp, {
                 messages: {
                   edges: {
-                    $unshift: [newMessageAsEdge],
+                    $unshift: [updatedMessage],
                   },
                 },
               });
@@ -389,7 +376,7 @@ export default compose(
               store.writeQuery({
                 query: USER_QUERY,
                 variables: {
-                  id: '21',
+                  id: userId,
                 },
                 data: update(userData, {
                   user: {
@@ -406,3 +393,39 @@ export default compose(
     },
   })
 )(Messages);
+
+const updateGroupQueryWithMessage = (
+  someGroupData: GroupQuery,
+  someNewMessage: MessageType
+) => {
+  if (
+    someNewMessage.id &&
+    someGroupData.group.messages.edges.some(
+      m => m.node.id === someNewMessage.id
+    )
+  ) {
+    return {
+      updatedGroup: undefined,
+      updatedMessage: undefined,
+    };
+  }
+
+  const someNewMessageAsEdge = {
+    __typename: 'MessageEdge',
+    node: someNewMessage,
+    cursor: Buffer.from(someNewMessage.id.toString()).toString('base64'),
+  };
+
+  return {
+    updatedGroup: update(someGroupData, {
+      group: {
+        messages: {
+          edges: {
+            $unshift: [someNewMessageAsEdge],
+          },
+        },
+      },
+    }),
+    updatedMessage: someNewMessageAsEdge,
+  };
+};

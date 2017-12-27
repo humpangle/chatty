@@ -218,6 +218,6 @@ export default graphql<UserQuery, InputProps>(USER_QUERY, {
     return data;
   },
   options: () => {
-    return { variables: { id: '21' } };
+    return { variables: { id: '1' } };
   },
 })(Groups);

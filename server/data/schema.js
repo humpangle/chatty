@@ -1,3 +1,6 @@
+import { makeExecutableSchema } from "graphql-tools";
+import { Resolvers } from "./resolvers";
+
 export const Schema = [
   `
     scalar Date
@@ -65,14 +68,27 @@ export const Schema = [
 
       updateGroup(name: String!, id: ID!): Group
 
+      leaveGroup(id: ID!, userId: ID!): Group
+
       createUser(email: String!, username: String!): User
+    }
+
+    type Subscription {
+      messageAdded(userId: ID, groupIds: [ID]): Message
+      groupAdded(userId: ID): Group
     }
 
     schema {
       query: Query
       mutation: Mutation
+      subscription: Subscription
     }
   `
 ];
 
-export default Schema;
+export const executableSchema = makeExecutableSchema({
+  typeDefs: Schema,
+  resolvers: Resolvers
+});
+
+export default executableSchema;

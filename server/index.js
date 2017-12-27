@@ -1,19 +1,17 @@
 import express from "express";
 import { graphqlExpress, graphiqlExpress } from "graphql-server-express";
-import { makeExecutableSchema } from "graphql-tools";
 import bodyParser from "body-parser";
 import { createServer } from "http";
-import { Schema } from "./data/schema";
-// import { Mocks } from "./data/mocks";
-import { Resolvers } from "./data/resolvers";
+import { executableSchema } from "./data/schema";
+import { SubscriptionServer } from "subscriptions-transport-ws";
+import { execute, subscribe } from "graphql";
 
 const GRAPHQL_PORT = 8081;
-const app = express();
+const GRAPHQL_PATH = "/graphql";
+const SUBSCRIPTIONS_PATH = "/subscriptions";
+const GRAPHQL_HOST = "192.168.178.42";
 
-const executableSchema = makeExecutableSchema({
-  typeDefs: Schema,
-  resolvers: Resolvers
-});
+const app = express();
 
 app.use(
   "/graphql",
@@ -27,15 +25,32 @@ app.use(
 app.use(
   "/graphiql",
   graphiqlExpress({
-    endpointURL: "/graphql"
+    endpointURL: GRAPHQL_PATH,
+    subscriptionsEndpoint: `ws://${GRAPHQL_HOST}:${GRAPHQL_PORT}${SUBSCRIPTIONS_PATH}`
   })
 );
 
 const graphqlServer = createServer(app);
 
-graphqlServer.listen(GRAPHQL_PORT, () =>
+graphqlServer.listen(GRAPHQL_PORT, () => {
   // eslint-disable-next-line no-console
   console.log(
-    `GRAPHQL server is running on http://0.0.0.0:${GRAPHQL_PORT}/graphql`
-  )
+    `GRAPHQL server is now running on http://${GRAPHQL_HOST}:${GRAPHQL_PORT}${GRAPHQL_PATH}`
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `GRAPHQL subscriptions are now running on ws://${GRAPHQL_HOST}:${GRAPHQL_PORT}${SUBSCRIPTIONS_PATH}`
+  );
+});
+
+SubscriptionServer.create(
+  {
+    schema: executableSchema,
+    execute,
+    subscribe
+  },
+  {
+    server: graphqlServer,
+    path: SUBSCRIPTIONS_PATH
+  }
 );

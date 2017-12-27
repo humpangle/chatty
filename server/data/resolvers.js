@@ -1,5 +1,10 @@
 import GraphQLDate from "graphql-date";
 import { User, Message, Group } from "./connectors";
+import { pubsub } from "../subscriptions";
+import { withFilter } from "graphql-subscriptions";
+
+const MESSAGED_ADDED_TOPIC = "messageAdded";
+const GROUP_ADDED_TOPIC = "groupAdded";
 
 export const Resolvers = {
   Date: GraphQLDate,
@@ -19,18 +24,34 @@ export const Resolvers = {
     groups: () => Group.findAll()
   },
   Mutation: {
-    createMessage: (_, { text, userId, groupId }) =>
-      Message.create({
+    createMessage: async (_, { text, userId, groupId }) => {
+      const message = await Message.create({
         text,
         userId,
         groupId
-      }),
+      });
 
-    createGroup: (_, { name, userId, userIds }) =>
-      Group.create({ name }).then(group => {
-        group.addUser([userId, ...userIds]);
-        return group;
-      }),
+      pubsub.publish(MESSAGED_ADDED_TOPIC, {
+        [MESSAGED_ADDED_TOPIC]: message
+      });
+
+      return message;
+    },
+
+    createGroup: async (_, { name, userId, userIds: friends }) => {
+      const userIds = [userId, ...friends];
+      const group = await Group.create({ name });
+
+      await group.addUser(userIds);
+
+      group.users = userIds;
+
+      pubsub.publish(GROUP_ADDED_TOPIC, {
+        [GROUP_ADDED_TOPIC]: group
+      });
+
+      return group;
+    },
 
     updateGroup: (_, { id, name }) =>
       Group.findOne({ where: { id } }).then(group =>
@@ -43,6 +64,27 @@ export const Resolvers = {
         username
       })
   },
+  Subscription: {
+    [MESSAGED_ADDED_TOPIC]: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(MESSAGED_ADDED_TOPIC),
+        (
+          { messageAdded: { groupId, userId: userId_ } },
+          { groupIds, userId }
+        ) =>
+          Boolean(groupIds && groupIds.includes(groupId) && userId !== userId_)
+      )
+    },
+
+    [GROUP_ADDED_TOPIC]: {
+      subscribe: withFilter(
+        () => pubsub.asyncIterator(GROUP_ADDED_TOPIC),
+        ({ groupAdded: { users } }, { userId }) =>
+          Boolean(userId && users.includes(userId) && userId !== users[0])
+      )
+    }
+  },
+
   Group: {
     users: group => group.getUsers(),
     messages: async (group, { first, last, before, after }) => {
