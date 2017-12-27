@@ -60,28 +60,31 @@ if (process.env.NODE_ENV !== 'production') {
 
     // tslint:disable-next-line:no-console
     console.log(
-      '\n\n\n=================================Apollo graphql operation: ',
-      operationName,
-      '\n',
+      `\n\n\n=============Apollo operation: ${operationName}==============\n`,
       processOperation(operation),
-      `\n=====end=Apollo graphql operation: ${operationName}===================`
+      `\n============End Apollo operation: ${operationName}================`
     );
 
-    return forward && forward(operation)
-      ? forward(operation).map
-        ? forward(operation).map(result => {
-            // tslint:disable-next-line:no-console
-            console.log(
-              '\n\n\n==============================Received result from: ',
-              operationName,
-              '\n',
-              result,
-              `\n=====end=Received result from: ${operationName}=================`
-            );
-            return result;
-          })
-        : forward(operation)
-      : null;
+    if (!forward) {
+      return forward;
+    }
+
+    const fop = forward(operation);
+
+    if (fop.map) {
+      return fop.map(result => {
+        // tslint:disable-next-line:no-console
+        console.log(
+          '\n\n\n',
+          `=====Received result from Apollo operation: ${operationName}=====\n`,
+          result,
+          `\n===End Received result from Apollo operation: ${operationName}===`
+        );
+        return result;
+      });
+    }
+
+    return fop;
   });
 
   link = logger.concat(link);
