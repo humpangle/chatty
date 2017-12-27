@@ -49,45 +49,8 @@ let link = split(
   httpLink
 );
 
-const processOperation = (operation: Operation) => ({
-  query: operation.query.loc ? operation.query.loc.source.body : {},
-  variables: operation.variables,
-});
-
 if (process.env.NODE_ENV !== 'production') {
-  const logger = new ApolloLink((operation, forward: NextLink) => {
-    const operationName = operation.operationName;
-
-    // tslint:disable-next-line:no-console
-    console.log(
-      `\n\n\n=============Apollo operation: ${operationName}==============\n`,
-      processOperation(operation),
-      `\n============End Apollo operation: ${operationName}================`
-    );
-
-    if (!forward) {
-      return forward;
-    }
-
-    const fop = forward(operation);
-
-    if (fop.map) {
-      return fop.map(result => {
-        // tslint:disable-next-line:no-console
-        console.log(
-          '\n\n\n',
-          `=====Received result from Apollo operation: ${operationName}=====\n`,
-          result,
-          `\n===End Received result from Apollo operation: ${operationName}===`
-        );
-        return result;
-      });
-    }
-
-    return fop;
-  });
-
-  link = logger.concat(link);
+  link = loggerMiddleware(link);
 }
 
 const client = new ApolloClient({
@@ -105,4 +68,53 @@ export default class App extends React.Component<{}, {}> {
       </Provider>
     );
   }
+}
+
+function loggerMiddleware(l: ApolloLink) {
+  const processOperation = (operation: Operation) => ({
+    query: operation.query.loc ? operation.query.loc.source.body : {},
+    variables: operation.variables,
+  });
+
+  const getNow = () => {
+    const n = new Date();
+    return `${n.getHours()}:${n.getMinutes()}:${n.getSeconds()}`;
+  };
+
+  const logger = new ApolloLink((operation, forward: NextLink) => {
+    const operationName = operation.operationName;
+
+    // tslint:disable-next-line:no-console
+    console.log(
+      '\n\n\n',
+      getNow(),
+      `=============Apollo operation: ${operationName}==============\n`,
+      processOperation(operation),
+      `\n============End Apollo operation: ${operationName}================`
+    );
+
+    if (!forward) {
+      return forward;
+    }
+
+    const fop = forward(operation);
+
+    if (fop.map) {
+      return fop.map(result => {
+        // tslint:disable-next-line:no-console
+        console.log(
+          '\n\n\n',
+          getNow(),
+          `=====Received result from Apollo operation: ${operationName}=====\n`,
+          result,
+          `\n===End Received result from Apollo operation: ${operationName}===`
+        );
+        return result;
+      });
+    }
+
+    return fop;
+  });
+
+  return logger.concat(l);
 }
