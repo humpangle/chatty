@@ -1,13 +1,6 @@
-import { ApolloQueryResult } from 'apollo-client-preset';
 import update from 'immutability-helper';
 import * as React from 'react';
-import {
-  ChildProps,
-  compose,
-  graphql,
-  MutationFunc,
-  QueryProps,
-} from 'react-apollo';
+import { ChildProps, compose, graphql, QueryProps } from 'react-apollo';
 import {
   Alert,
   Button,
@@ -27,13 +20,16 @@ import SelectedUserList from '../components/selected-user-list.component';
 import CREATE_GROUP_MUTATION from '../graphql/create-group.mutation';
 import {
   CreateGroupMutation,
-  CreateGroupMutationVariables,
   UserFriendType,
   UserGroupType,
   UserQuery,
   UserQueryVariables,
+  CreateGroupMutationFunc,
+  CreateGroupMutationProps,
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
+import { connect } from 'react-redux';
+import { ReduxState, getUser } from '../reducers/auth.reducer';
 
 const goToNewGroup = ({ id, name }: UserGroupType) =>
   NavigationActions.reset({
@@ -112,7 +108,6 @@ interface NavigationState {
     mode: string;
     create: () => undefined;
     selected: UserFriendType[];
-    userId: string;
     friendCount: number;
   };
 }
@@ -127,17 +122,18 @@ interface FinalizeGroupState {
 interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
   selected?: UserFriendType[];
-  createGroup: (
-    name: string,
-    userIds: string[]
-  ) => Promise<ApolloQueryResult<CreateGroupMutation>>;
 }
 
 type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
 
-type Mutation = MutationFunc<CreateGroupMutation, CreateGroupMutationVariables>;
+interface FromReduxState {
+  id: string;
+}
 
-type InputProps = OwnProps & UserQueryWithData & Mutation;
+type InputProps = OwnProps &
+  UserQueryWithData &
+  CreateGroupMutationProps &
+  FromReduxState;
 
 type FinalizeGroupProps = ChildProps<
   InputProps,
@@ -245,7 +241,7 @@ class FinalizeGroup extends React.Component<FinalizeGroupProps> {
   private remove = (user: UserFriendType) => {
     const index = this.state.selected.indexOf(user);
 
-    if (-index - 1) {
+    if (index !== -1) {
       this.setState(previousState =>
         update(previousState, { selected: { $splice: [[index, 1]] } })
       );
@@ -283,11 +279,15 @@ class FinalizeGroup extends React.Component<FinalizeGroupProps> {
 }
 
 export default compose(
+  connect<FromReduxState, {}, {}, ReduxState>(state => ({
+    id: getUser(state).id,
+  })),
+
   graphql<UserQuery, InputProps>(USER_QUERY, {
-    options: ownProps => {
+    options: ({ id }) => {
       return {
         variables: {
-          id: ownProps.navigation.state.params.userId,
+          id,
         },
       };
     },
@@ -301,14 +301,13 @@ export default compose(
 
   graphql<CreateGroupMutation, InputProps>(CREATE_GROUP_MUTATION, {
     props: props => {
-      const mutate = props.mutate as Mutation;
-      const userId = props.ownProps.navigation.state.params.userId;
+      const mutate = props.mutate as CreateGroupMutationFunc;
+      const { id } = props.ownProps;
 
       return {
         createGroup(name: string, userIds: string[]) {
           return mutate({
             variables: {
-              userId,
               name,
               userIds,
             },
@@ -320,7 +319,9 @@ export default compose(
 
               const data = store.readQuery({
                 query: USER_QUERY,
-                variables: { id: userId },
+                variables: {
+                  id,
+                },
               }) as UserQueryWithData;
 
               const newGroup = newData.createGroup;
@@ -342,7 +343,9 @@ export default compose(
 
               store.writeQuery({
                 query: USER_QUERY,
-                variables: { id: userId },
+                variables: {
+                  id,
+                },
                 data: updatedData,
               });
             },

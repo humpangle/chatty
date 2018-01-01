@@ -1,6 +1,6 @@
 import moment from 'moment';
 import * as React from 'react';
-import { ChildProps, graphql } from 'react-apollo';
+import { ChildProps, graphql, compose } from 'react-apollo';
 import {
   ActivityIndicator,
   Button,
@@ -20,6 +20,8 @@ import {
 } from '../graphql/types.query';
 import { USER_QUERY } from '../graphql/user.query';
 import reactLogo from '../images/react.png';
+import { connect } from 'react-redux';
+import { ReduxState, getUser } from '../reducers/auth.reducer';
 
 const styles = StyleSheet.create({
   container: {
@@ -142,7 +144,11 @@ interface OwnProps {
   };
 }
 
-type InputProps = OwnProps & UserQueryWithData;
+interface FromReduxState {
+  id: string;
+}
+
+type InputProps = OwnProps & FromReduxState & UserQueryWithData;
 
 type GroupsProps = ChildProps<InputProps, UserQuery>;
 
@@ -155,15 +161,15 @@ class Groups extends React.Component<GroupsProps> {
   private flatList: FlatList<UserGroupType>;
 
   render() {
-    if (this.props.loading) {
+    const { user, networkStatus, loading } = this.props;
+
+    if (loading || !user) {
       return (
         <View style={[styles.loading, styles.container]}>
           <ActivityIndicator />
         </View>
       );
     }
-
-    const { user, networkStatus } = this.props;
 
     if (!user.groups.length) {
       return (
@@ -212,12 +218,23 @@ class Groups extends React.Component<GroupsProps> {
   private onRefresh = () => this.props.refetch();
 }
 
-export default graphql<UserQuery, InputProps>(USER_QUERY, {
-  props: props => {
-    const data = props.data as UserQueryWithData;
-    return data;
-  },
-  options: () => {
-    return { variables: { id: '1' } };
-  },
-})(Groups);
+export default compose(
+  connect<FromReduxState, {}, {}, ReduxState>(state => {
+    return {
+      id: getUser(state).id,
+    };
+  }),
+
+  graphql<UserQuery, InputProps>(USER_QUERY, {
+    skip: ({ id }) => !id,
+
+    props: props => {
+      const data = props.data as UserQueryWithData;
+      return data;
+    },
+
+    options: ({ id }) => {
+      return { variables: { id } };
+    },
+  })
+)(Groups);

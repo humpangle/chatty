@@ -25,6 +25,7 @@
       "never-prefix"
     ],
     "no-any": true,
-    "no-arg": true
+    "no-arg": true,
+    "ordered-imports": false
   }
 }

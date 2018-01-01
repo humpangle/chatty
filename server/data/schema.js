@@ -24,6 +24,7 @@ export const Schema = [
       messages: [Message]
       groups: [Group]
       friends: [User]
+      jwt: String
     }
 
     type Message {
@@ -62,20 +63,18 @@ export const Schema = [
     }
 
     type Mutation {
-      createMessage(text: String!, userId: ID!, groupId: ID!): Message
-
-      createGroup(name: String!, userId: ID!, userIds: [ID!]): Group
-
+      createMessage(text: String!, groupId: ID!): Message
+      createGroup(name: String!, userIds: [ID!]): Group
       updateGroup(name: String!, id: ID!): Group
-
-      leaveGroup(id: ID!, userId: ID!): Group
-
-      createUser(email: String!, username: String!): User
+      leaveGroup(id: ID!): Group
+      deleteGroup(id: ID!): Group
+      login(email: String!, password: String!): User
+      signup(email: String!, password: String!, username: String): User
     }
 
     type Subscription {
-      messageAdded(userId: ID, groupIds: [ID]): Message
-      groupAdded(userId: ID): Group
+      messageAdded(groupIds: [ID]): Message
+      groupAdded: Group
     }
 
     schema {

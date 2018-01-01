@@ -2,7 +2,7 @@ import update from 'immutability-helper';
 import _groupBy from 'lodash-es/groupBy';
 import _keys from 'lodash-es/keys';
 import * as React from 'react';
-import { ChildProps, graphql, QueryProps } from 'react-apollo';
+import { ChildProps, graphql, compose } from 'react-apollo';
 import {
   ActivityIndicator,
   Button,
@@ -21,10 +21,12 @@ import SelectedUserList from '../components/selected-user-list.component';
 import {
   UserFriendType,
   UserQuery,
-  UserQueryVariables,
   UserType,
+  UserQueryWithData,
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
+import { connect } from 'react-redux';
+import { ReduxState, getUser } from '../reducers/auth.reducer';
 
 const sortObj = (o: { [key: string]: object }) =>
   Object.keys(o)
@@ -160,9 +162,11 @@ interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
 }
 
-type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
+interface FromReduxState {
+  id: string;
+}
 
-type InputProps = UserQueryWithData & OwnProps;
+type InputProps = UserQueryWithData & OwnProps & FromReduxState;
 
 type NewGroupProps = ChildProps<InputProps, UserQuery>;
 
@@ -302,11 +306,10 @@ class NewGroup extends React.Component<NewGroupProps> {
     return this.props.navigation.navigate('FinalizeGroup', {
       selected: this.state.selected,
       friendCount: (this.props.user && this.props.user.friends.length) || 0,
-      userId: (this.props.user && this.props.user.id) || '-1',
     });
   };
 
-  isSelected = (user: UserType) => -this.getUserIndex(user) - 1;
+  isSelected = (user: UserType) => this.getUserIndex(user) !== -1;
 
   toggle = (user: UserType) => {
     const index = this.getUserIndex(user);
@@ -324,19 +327,27 @@ class NewGroup extends React.Component<NewGroupProps> {
   private getUserIndex = (user: UserType) => this.state.selected.indexOf(user);
 }
 
-export default graphql<UserQuery, InputProps>(USER_QUERY, {
-  props: props => {
-    const data = props.data as UserQueryWithData;
-    const { user, loading, error } = data;
+export default compose(
+  connect<FromReduxState, {}, {}, ReduxState>(state => ({
+    id: getUser(state).id,
+  })),
 
-    return {
-      user,
-      loading,
-      error,
-      ...props.ownProps,
-    };
-  },
-  options: {
-    variables: { id: '21' },
-  },
-})(NewGroup);
+  graphql<UserQuery, InputProps>(USER_QUERY, {
+    options: ({ id }) => ({
+      variables: {
+        id,
+      },
+    }),
+
+    props: props => {
+      const data = props.data as UserQueryWithData;
+      const { user, loading, error } = data;
+
+      return {
+        user,
+        loading,
+        error,
+      };
+    },
+  })
+)(NewGroup);

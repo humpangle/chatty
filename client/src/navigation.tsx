@@ -1,7 +1,7 @@
 import update from 'immutability-helper';
 import * as React from 'react';
 import { ChildProps, compose, graphql } from 'react-apollo';
-import { BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform } from 'react-native';
 import {
   addNavigationHelpers,
   NavigationActions,
@@ -22,29 +22,15 @@ import Groups from './screens/groups.screen';
 import Messages from './screens/messages.screen';
 import NewGroup from './screens/new-group.screens';
 import { messageToEdge } from './utils';
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  tabText: {
-    color: '#777',
-    fontSize: 10,
-    justifyContent: 'center',
-  },
-  selected: {
-    color: 'blue',
-  },
-});
-
-const TestScreen = (title: string) => () => (
-  <View style={styles.container}>
-    <Text>{title}</Text>
-  </View>
-);
+import Signin from './screens/signup.screen';
+import { Reducer } from 'redux';
+import Settings from './screens/settings.screen';
+import {
+  ActionType,
+  ActionTypeKeys,
+  ReduxState,
+  getUser,
+} from './reducers/auth.reducer';
 
 const MainScreenNavigator = TabNavigator({
   Chats: {
@@ -53,16 +39,17 @@ const MainScreenNavigator = TabNavigator({
       tabBarLabel: 'Chats',
     },
   },
+
   Settings: {
-    screen: TestScreen('Settings'),
-    navigationOptions: {
-      tabBarLabel: 'Settings',
-    },
+    screen: Settings,
   },
 });
 
 const AppNavigator = StackNavigator({
   Main: { screen: MainScreenNavigator },
+  Signin: {
+    screen: Signin,
+  },
   Messages: { screen: Messages },
   NewGroup: {
     screen: NewGroup,
@@ -82,17 +69,51 @@ const initialNavState = AppNavigator.router.getStateForAction(
   undefined
 );
 
-export const navigationReducer = (
+export const navigationReducer: Reducer<NavigationState> = (
   state = initialNavState,
-  action: { type: string }
-) => AppNavigator.router.getStateForAction(action, state) || state;
+  action: ActionType
+) => {
+  let nextState = AppNavigator.router.getStateForAction(action, state) || state;
+
+  const routeToSignin = () => {
+    const { routes, index } = state;
+
+    if (routes[index].routeName !== 'Signin') {
+      nextState = AppNavigator.router.getStateForAction(
+        NavigationActions.reset({
+          index: 0,
+          actions: [NavigationActions.navigate({ routeName: 'Signin' })],
+        }),
+        state
+      );
+    }
+  };
+
+  switch (action.type) {
+    case ActionTypeKeys.REHYDRATE:
+      if (!(action.payload && action.payload.auth.jwt)) {
+        routeToSignin();
+      }
+      break;
+
+    case ActionTypeKeys.LOGOUT:
+      routeToSignin();
+      break;
+
+    default:
+      return nextState;
+  }
+
+  return nextState;
+};
 
 interface State {
   nav: NavigationState;
 }
 
-interface StateProps {
+interface FromReduxState {
   nav: NavigationState;
+  id: string;
 }
 
 interface OwnProps {
@@ -101,7 +122,7 @@ interface OwnProps {
   subscribeToGroups: () => () => undefined;
 }
 
-type InputProps = StateProps & OwnProps & UserQueryWithData;
+type InputProps = FromReduxState & OwnProps & UserQueryWithData;
 
 type AppWithNavigationStateProps = ChildProps<InputProps, UserQuery>;
 
@@ -196,11 +217,24 @@ class AppWithNavigationState extends React.Component<
 }
 
 export default compose(
-  connect<StateProps, OwnProps, {}, State>(({ nav }) => {
-    return { nav };
+  connect<FromReduxState, {}, {}, ReduxState & State>(state => {
+    return {
+      nav: state.nav,
+      id: getUser(state).id,
+    };
   }),
 
   graphql<UserQuery, InputProps>(USER_QUERY, {
+    skip: ({ id }) => !id,
+
+    options: ({ id }) => {
+      return {
+        variables: {
+          id,
+        },
+      };
+    },
+
     props: props => {
       const {
         loading,
@@ -209,17 +243,18 @@ export default compose(
         refetch,
         user,
       } = props.data as UserQueryWithData;
+
       return {
         loading,
         error,
         refetch,
         user,
+
         subscribeToMessages() {
           return subscribeToMore({
             document: MESSAGE_ADDED_SUBSCRIPTION,
 
             variables: {
-              userId: user.id,
               groupIds: user.groups.map(g => g.id),
             },
 
@@ -254,13 +289,12 @@ export default compose(
             },
           });
         },
+
         subscribeToGroups() {
           return subscribeToMore({
             document: GROUP_ADDED_SUBSCRIPTION,
 
-            variables: {
-              userId: user.id,
-            },
+            // variables: {}, the user subscribing will be handled by server
 
             updateQuery(previous: UserQuery, { subscriptionData: { data } }) {
               return update(previous, {
@@ -274,9 +308,6 @@ export default compose(
           });
         },
       };
-    },
-    options: () => {
-      return { variables: { id: '1' } };
     },
   })
 )(AppWithNavigationState);

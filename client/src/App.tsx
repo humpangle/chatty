@@ -10,16 +10,38 @@ import { OperationDefinitionNode } from 'graphql';
 import * as React from 'react';
 import { ApolloProvider } from 'react-apollo';
 import { Provider } from 'react-redux';
-import { combineReducers, createStore } from 'redux';
+import { createStore } from 'redux';
 import { composeWithDevTools } from 'redux-devtools-extension';
 import { SubscriptionClient } from 'subscriptions-transport-ws';
 import AppWithNavigationState, { navigationReducer } from './navigation';
+import auth, { ReduxState } from './reducers/auth.reducer';
+import {
+  AsyncStorage,
+  StyleSheet,
+  ActivityIndicator,
+  View,
+} from 'react-native';
+import { persistStore, persistCombineReducers } from 'redux-persist';
+import { PersistGate } from 'redux-persist/es/integration/react';
+import { onError } from 'apollo-link-error';
+import { logout } from './actions/auth.actions';
+import _some from 'lodash-es/some';
+import { getUser } from './reducers/auth.reducer';
 
-const store = createStore(
-  combineReducers({ nav: navigationReducer }),
-  {},
-  composeWithDevTools()
+const reducers = persistCombineReducers<ReduxState>(
+  {
+    key: '@chatty-native',
+    storage: AsyncStorage,
+    blacklist: ['nav'],
+  },
+  {
+    auth,
+    nav: navigationReducer,
+  }
 );
+
+const store = createStore<ReduxState>(reducers, composeWithDevTools());
+const persistor = persistStore(store);
 
 const API_URL = Expo.Constants.manifest.extra
   ? Expo.Constants.manifest.extra.REACT_NATIVE_APP_API_URL
@@ -31,12 +53,21 @@ const WEBSOCKET_URL = `${API_URL.replace(/https?/, 'ws')}/subscriptions`;
 
 export const wsClient = new SubscriptionClient(WEBSOCKET_URL, {
   reconnect: true,
-  connectionParams: {},
+  connectionParams() {
+    return { jwt: getUser(store.getState()).jwt };
+  },
+  lazy: true,
 });
 
 const wsLink = new WebSocketLink(wsClient) as ApolloLink;
 
-const httpLink = new HttpLink({ uri: HTTP_URL }) as ApolloLink;
+let httpLink;
+
+httpLink = new HttpLink({ uri: HTTP_URL }) as ApolloLink;
+
+httpLink = middlewareAuthLink().concat(httpLink);
+
+httpLink = middlewareErrorLink().concat(httpLink);
 
 let link = split(
   ({ query }) => {
@@ -50,10 +81,10 @@ let link = split(
 );
 
 if (process.env.NODE_ENV !== 'production') {
-  link = loggerMiddleware(link);
+  link = middlewareLoggerLink(link);
 }
 
-const client = new ApolloClient({
+export const client = new ApolloClient({
   link,
   cache: new InMemoryCache(),
 });
@@ -62,35 +93,81 @@ export default class App extends React.Component<{}, {}> {
   render() {
     return (
       <Provider store={store}>
-        <ApolloProvider client={client}>
-          <AppWithNavigationState />
-        </ApolloProvider>
+        <PersistGate
+          persistor={persistor}
+          loading={<Loading />}
+          onBeforeLift={onBeforeLift}
+        >
+          <ApolloProvider client={client}>
+            <AppWithNavigationState />
+          </ApolloProvider>
+        </PersistGate>
       </Provider>
     );
   }
 }
 
-function loggerMiddleware(l: ApolloLink) {
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'white',
+    flex: 1,
+    alignItems: 'stretch',
+  },
+  loading: {
+    justifyContent: 'center',
+    flex: 1,
+  },
+});
+
+function Loading() {
+  return (
+    <View style={[styles.loading, styles.container]}>
+      <ActivityIndicator />
+    </View>
+  );
+}
+
+function onBeforeLift() {
+  return undefined;
+}
+
+function middlewareAuthLink() {
+  return new ApolloLink((operation, forward) => {
+    const token = getUser(store.getState()).jwt;
+
+    if (token) {
+      operation.setContext({
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+    }
+
+    return forward ? forward(operation) : null;
+  });
+}
+
+const getNow = () => {
+  const n = new Date();
+  return `${n.getHours()}:${n.getMinutes()}:${n.getSeconds()}`;
+};
+
+function middlewareLoggerLink(l: ApolloLink) {
   const processOperation = (operation: Operation) => ({
     query: operation.query.loc ? operation.query.loc.source.body : {},
     variables: operation.variables,
   });
 
-  const getNow = () => {
-    const n = new Date();
-    return `${n.getHours()}:${n.getMinutes()}:${n.getSeconds()}`;
-  };
-
   const logger = new ApolloLink((operation, forward: NextLink) => {
-    const operationName = operation.operationName;
+    const operationName = `Apollo operation: ${operation.operationName}`;
 
     // tslint:disable-next-line:no-console
     console.log(
       '\n\n\n',
       getNow(),
-      `=============Apollo operation: ${operationName}==============\n`,
+      `=============================${operationName}========================\n`,
       processOperation(operation),
-      `\n============End Apollo operation: ${operationName}================`
+      `\n=========================End ${operationName}=========================`
     );
 
     if (!forward) {
@@ -100,16 +177,16 @@ function loggerMiddleware(l: ApolloLink) {
     const fop = forward(operation);
 
     if (fop.map) {
-      return fop.map(result => {
+      return fop.map(response => {
         // tslint:disable-next-line:no-console
         console.log(
           '\n\n\n',
           getNow(),
-          `=====Received result from Apollo operation: ${operationName}=====\n`,
-          result,
-          `\n===End Received result from Apollo operation: ${operationName}===`
+          `==============Received response from ${operationName}============\n`,
+          response,
+          `\n==========End Received response from ${operationName}=============`
         );
-        return result;
+        return response;
       });
     }
 
@@ -117,4 +194,44 @@ function loggerMiddleware(l: ApolloLink) {
   });
 
   return logger.concat(l);
+}
+
+function middlewareErrorLink() {
+  return onError(({ graphQLErrors, networkError, response, operation }) => {
+    // tslint:disable-next-line:ban-types
+    const loggError = (errorName: string, obj: Object) => {
+      if (process.env.NODE_ENV === 'production') {
+        return;
+      }
+
+      const operationName = `[${errorName} error] from Apollo operation: ${
+        operation.operationName
+      }`;
+
+      // tslint:disable-next-line:no-console
+      console.log(
+        '\n\n\n',
+        getNow(),
+        `============================${operationName}=======================\n`,
+        obj,
+        `\n====================End ${operationName}============================`
+      );
+    };
+
+    if (response) {
+      loggError('Response', response);
+    }
+
+    if (networkError) {
+      loggError('Network', networkError);
+    }
+
+    if (graphQLErrors) {
+      loggError('GraphQL', graphQLErrors);
+
+      if (_some(graphQLErrors, { message: 'Unauthorized' })) {
+        store.dispatch(logout());
+      }
+    }
+  });
 }

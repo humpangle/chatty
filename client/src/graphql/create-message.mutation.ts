@@ -2,8 +2,8 @@ import gql from 'graphql-tag';
 import MESSAGE_FRAGMENT from './message.fragment';
 
 export const CREATE_MESSAGE_MUTATION = gql`
-  mutation CreateMessage($text: String!, $userId: ID!, $groupId: ID!) {
-    createMessage(text: $text, userId: $userId, groupId: $groupId) {
+  mutation CreateMessage($text: String!, $groupId: ID!) {
+    createMessage(text: $text, groupId: $groupId) {
       ...MessageFragment
     }
   }

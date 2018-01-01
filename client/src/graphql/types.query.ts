@@ -85,7 +85,6 @@ export interface CreateMessageMutation {
 
 export interface CreateMessageMutationVariables {
   text: string;
-  userId: string;
   groupId: string;
 }
 
@@ -96,14 +95,9 @@ export type CreateMessageMutationFunc = MutationFunc<
 
 export type CreateMessageMutationProps = CreateMessageMutationFunc & {
   createMessage: (
-    params: CreateMessageParams
+    text: string
   ) => Promise<ApolloQueryResult<CreateMessageMutation>>;
 };
-
-export interface CreateMessageParams {
-  text: string;
-  userId: string;
-}
 
 export interface CreateGroupMutation {
   createGroup: UserGroupType;
@@ -111,6 +105,65 @@ export interface CreateGroupMutation {
 
 export interface CreateGroupMutationVariables {
   name: string;
-  userId: string;
   userIds: string[];
 }
+
+export type CreateGroupMutationFunc = MutationFunc<
+  CreateGroupMutation,
+  CreateGroupMutationVariables
+>;
+
+export type CreateGroupMutationProps = CreateGroupMutationFunc & {
+  createGroup: (
+    name: string,
+    userIds: string[]
+  ) => Promise<ApolloQueryResult<CreateGroupMutation>>;
+};
+
+export interface LoginMutation {
+  login: AuthType;
+}
+
+export type LoginMutationFunc = MutationFunc<
+  LoginMutation,
+  AuthMutationVariables
+>;
+
+export type LoginMutationProps = LoginMutationFunc & {
+  login: (
+    params: AuthMutationVariables
+  ) => Promise<ApolloQueryResult<LoginMutation>>;
+};
+
+export interface SignupMutation {
+  signup: AuthType;
+}
+
+export type SignupMutationFunc = MutationFunc<
+  SignupMutation,
+  AuthMutationVariables
+>;
+
+export type SignupMutationProps = SignupMutationFunc & {
+  signup: (
+    params: AuthMutationVariables
+  ) => Promise<ApolloQueryResult<SignupMutation>>;
+};
+
+export interface AuthMutationVariables {
+  email: string;
+  password: string;
+  username?: string;
+}
+
+export interface AuthType {
+  id: string;
+  jwt: string;
+  username: string;
+}
+
+export const initialAuth: AuthType = {
+  id: '',
+  jwt: '',
+  username: '',
+};

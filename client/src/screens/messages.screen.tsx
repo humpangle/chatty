@@ -22,7 +22,6 @@ import {
   CreateMessageMutation,
   CreateMessageMutationFunc,
   CreateMessageMutationProps,
-  CreateMessageParams,
   GroupQuery,
   GroupQueryWithData,
   GroupType,
@@ -32,9 +31,8 @@ import {
 } from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
 import { messageToEdge } from '../utils';
-
-// mock user id - will be removed when auth is implemented
-const mockUserId = '1';
+import { connect } from 'react-redux';
+import { ReduxState, getUser } from '../reducers/auth.reducer';
 
 const styles = StyleSheet.create({
   container: {
@@ -55,12 +53,20 @@ interface NavigationState {
 type NavigationProps = NavigationProp<NavigationState, {}>;
 type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
+interface FromReduxState {
+  id: string;
+  username: string;
+}
+
 type OwnProps = NavigatorProps & {
   loadMoreEntries: () => undefined;
   subscribeToNewMessages: () => () => undefined;
 };
 
-type InputProps = OwnProps & GroupQueryWithData & CreateMessageMutationProps;
+type InputProps = OwnProps &
+  GroupQueryWithData &
+  CreateMessageMutationProps &
+  FromReduxState;
 
 type MessagesProps = ChildProps<InputProps, GroupQuery & CreateMessageMutation>;
 
@@ -103,7 +109,10 @@ class Messages extends React.Component<MessagesProps> {
       this.newMessageSubscription();
     }
 
-    if (nextProps.group) {
+    const { group: nextGrp } = nextProps;
+    const { group: currentGrp } = this.props;
+
+    if (nextGrp && (!currentGrp || nextGrp.id !== currentGrp.id)) {
       if (this.newMessageSubscription) {
         this.newMessageSubscription();
       }
@@ -168,7 +177,7 @@ class Messages extends React.Component<MessagesProps> {
   }) => (
     <Message
       color={this.state.usernameColors[message.from.username]}
-      isCurrentUser={message.from.id === '1'}
+      isCurrentUser={message.from.id === this.props.id}
       message={message}
     />
   );
@@ -182,10 +191,7 @@ class Messages extends React.Component<MessagesProps> {
       return;
     }
 
-    await this.props.createMessage({
-      text,
-      userId: mockUserId,
-    });
+    await this.props.createMessage(text);
 
     this.flatList.scrollToIndex({
       animated: true,
@@ -215,6 +221,10 @@ class Messages extends React.Component<MessagesProps> {
 const ITEMS_PER_PAGE = 10;
 
 export default compose(
+  connect<FromReduxState, {}, {}, ReduxState>(state => ({
+    ...getUser(state),
+  })),
+
   graphql<GroupQuery, InputProps>(GROUP_QUERY, {
     props: props => {
       const {
@@ -235,19 +245,21 @@ export default compose(
           ? group.messages.edges[lastMessageIndex].cursor
           : null;
 
-      const navigation = props.ownProps.navigation;
+      const { navigation } = props.ownProps;
 
       return {
         loading,
         error,
         group,
+
         loadMoreEntries: () =>
           fetchMore({
             variables: {
               first: ITEMS_PER_PAGE,
               after,
             },
-            updateQuery: (previousResult, options) => {
+
+            updateQuery(previousResult, options) {
               const fetchMoreResult = options.fetchMoreResult as GroupQueryWithData;
 
               if (!fetchMoreResult) {
@@ -264,12 +276,12 @@ export default compose(
               });
             },
           }),
+
         subscribeToNewMessages: () =>
           subscribeToMore({
             document: MESSAGE_ADDED_SUBSCRIPTION,
 
             variables: {
-              userId: mockUserId,
               groupIds: [navigation ? navigation.state.params.groupId : '-1'],
             },
 
@@ -280,12 +292,11 @@ export default compose(
           }),
       };
     },
-    options: ownProps => {
+
+    options: ({ navigation }) => {
       return {
         variables: {
-          groupId:
-            (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
-            '-1',
+          groupId: (navigation && navigation.state.params.groupId) || '-1',
           first: ITEMS_PER_PAGE,
         },
       };
@@ -295,14 +306,16 @@ export default compose(
   graphql<CreateMessageMutation, InputProps>(CREATE_MESSAGE_MUTATION, {
     props: props => {
       const mutate = props.mutate as CreateMessageMutationFunc;
-      const ownProps = props.ownProps;
-      const groupId =
-        (ownProps.navigation && ownProps.navigation.state.params.groupId) ||
-        '-1';
+      const { navigation, id, username } = props.ownProps;
+      const groupId = (navigation && navigation.state.params.groupId) || '-1';
+
       return {
-        createMessage: ({ userId, text }: CreateMessageParams) => {
-          return mutate({
-            variables: { userId, text, groupId },
+        createMessage: (text: string) =>
+          mutate({
+            variables: {
+              text,
+              groupId,
+            },
             optimisticResponse: {
               __typename: 'Mutation',
               createMessage: {
@@ -312,8 +325,8 @@ export default compose(
                 createdAt: new Date().toISOString(),
                 from: {
                   __typename: 'User',
-                  id: userId,
-                  username: 'Justyn.Kautzer',
+                  id,
+                  username,
                 },
                 to: {
                   __typename: 'Group',
@@ -358,7 +371,7 @@ export default compose(
               const userData = store.readQuery({
                 query: USER_QUERY,
                 variables: {
-                  id: userId,
+                  id,
                 },
               }) as UserQueryWithData;
 
@@ -393,7 +406,7 @@ export default compose(
               store.writeQuery({
                 query: USER_QUERY,
                 variables: {
-                  id: userId,
+                  id,
                 },
                 data: update(userData, {
                   user: {
@@ -404,8 +417,7 @@ export default compose(
                 }),
               });
             },
-          });
-        },
+          }),
       };
     },
   })
