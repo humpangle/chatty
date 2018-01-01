@@ -5,16 +5,44 @@ export const Schema = [
   `
     scalar Date
 
+    input CreateMessageInput {
+      groupId: ID!
+      text: String!
+    }
+
+    input CreateGroupInput {
+      name: String!
+      userIds: [ID!]
+    }
+
+    input UpdateGroupInput {
+      id: ID!
+      name: String
+      userIds: [ID]
+    }
+
+    input SigninUserInput {
+      email: String!
+      password: String!
+      username: String
+    }
+
+    input UpdateUserInput {
+      username: String
+    }
+
+    input ConnectionInput {
+      first: Int
+      after: String
+      last: Int
+      before: String
+    }
+
     type Group {
       id: ID!
       name: String
       users: [User]!
-      messages(
-        first: Int
-        after: String
-        last: Int
-        before: String
-      ): MessageConnection
+      messages(messageConnection: ConnectionInput): MessageConnection
     }
 
     type User {
@@ -63,13 +91,13 @@ export const Schema = [
     }
 
     type Mutation {
-      createMessage(text: String!, groupId: ID!): Message
-      createGroup(name: String!, userIds: [ID!]): Group
-      updateGroup(name: String!, id: ID!): Group
+      createMessage(message: CreateMessageInput!): Message
+      createGroup(group: CreateGroupInput): Group
+      updateGroup(group: UpdateGroupInput): Group
       leaveGroup(id: ID!): Group
       deleteGroup(id: ID!): Group
-      login(email: String!, password: String!): User
-      signup(email: String!, password: String!, username: String): User
+      login(user: SigninUserInput): User
+      signup(user: SigninUserInput): User
     }
 
     type Subscription {

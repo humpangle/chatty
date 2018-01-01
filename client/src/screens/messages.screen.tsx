@@ -18,21 +18,23 @@ import Message from '../components/message.component';
 import CREATE_MESSAGE_MUTATION from '../graphql/create-message.mutation';
 import { GROUP_QUERY } from '../graphql/group.query';
 import MESSAGE_ADDED_SUBSCRIPTION from '../graphql/message-added.subscription';
-import {
-  CreateMessageMutation,
-  CreateMessageMutationFunc,
-  CreateMessageMutationProps,
-  GroupQuery,
-  GroupQueryWithData,
-  GroupType,
-  MessageEdge,
-  MessageType,
-  UserQueryWithData,
-} from '../graphql/types.query';
 import USER_QUERY from '../graphql/user.query';
 import { messageToEdge } from '../utils';
 import { connect } from 'react-redux';
 import { ReduxState, getUser } from '../reducers/auth.reducer';
+import {
+  CreateMessageMutation,
+  MessageEdgeFragmentFragment,
+  MessageFragmentFragment,
+  GroupQuery,
+  GroupFragmentFragment,
+} from '../graphql/operation-result-types';
+import {
+  CreateMessageMutationFunc,
+  CreateMessageMutationProps,
+  UserQueryWithData,
+  GroupQueryWithData,
+} from '../graphql/operation-graphql-types';
 
 const styles = StyleSheet.create({
   container: {
@@ -88,7 +90,7 @@ class Messages extends React.Component<MessagesProps> {
     loadingMoreEntries: false,
   };
 
-  private flatList: FlatList<GroupType>;
+  private flatList: FlatList<GroupFragmentFragment>;
 
   private newMessageSubscription: () => undefined;
 
@@ -96,8 +98,11 @@ class Messages extends React.Component<MessagesProps> {
     if (nextProps.group && nextProps.group.users) {
       const usernameColors = { ...this.state.usernameColors };
 
-      nextProps.group.users.forEach(({ username }) => {
-        usernameColors[username] = usernameColors[username] || randomColor();
+      nextProps.group.users.forEach(user => {
+        const { username = '' } = user || {};
+        if (username) {
+          usernameColors[username] = usernameColors[username] || randomColor();
+        }
       });
 
       this.setState(prevState => {
@@ -146,6 +151,8 @@ class Messages extends React.Component<MessagesProps> {
       );
     }
 
+    const edges = (group && group.messages && group.messages.edges) || [];
+
     return (
       <KeyboardAvoidingView
         behavior={'position'}
@@ -155,7 +162,7 @@ class Messages extends React.Component<MessagesProps> {
       >
         <FlatList
           ref={this.makeFlatList}
-          data={group.messages.edges}
+          data={edges}
           keyExtractor={this.keyExtractor}
           renderItem={this.renderItem}
           onEndReached={this.onEndReached}
@@ -167,23 +174,27 @@ class Messages extends React.Component<MessagesProps> {
     );
   }
 
-  private keyExtractor = (item: MessageEdge) => item.node.id;
+  private keyExtractor = (item: MessageEdgeFragmentFragment) => item.node.id;
 
   private renderItem = ({
     item: { node: message },
   }: {
-    item: MessageEdge;
+    item: MessageEdgeFragmentFragment;
     index: number;
-  }) => (
-    <Message
-      color={this.state.usernameColors[message.from.username]}
-      isCurrentUser={message.from.id === this.props.id}
-      message={message}
-    />
-  );
+  }) => {
+    const { username = '', id = '-1' } = message.from || {};
+    return (
+      <Message
+        color={this.state.usernameColors[username || '']}
+        isCurrentUser={id === this.props.id}
+        message={message}
+      />
+    );
+  };
 
   private makeFlatList = (
-    c: React.Component<FlatListProperties<GroupType>> & FlatList<GroupType>
+    c: React.Component<FlatListProperties<GroupFragmentFragment>> &
+      FlatList<GroupFragmentFragment>
   ) => (this.flatList = c);
 
   private send = async (text: string) => {
@@ -202,7 +213,10 @@ class Messages extends React.Component<MessagesProps> {
   private onEndReached = async () => {
     const { group, loadMoreEntries } = this.props;
 
-    if (!this.state.loadingMoreEntries && group.messages.pageInfo.hasNextPage) {
+    const hasNextPage =
+      group && group.messages && group.messages.pageInfo.hasNextPage;
+
+    if (!this.state.loadingMoreEntries && hasNextPage) {
       this.setState(previousState => ({
         ...previousState,
         loadingMoreEntries: true,
@@ -235,17 +249,18 @@ export default compose(
         subscribeToMore,
       } = props.data as GroupQueryWithData;
 
-      if (loading || error) {
+      if (!group || loading || error) {
         return { loading, error };
       }
 
-      const lastMessageIndex = group.messages.edges.length - 1;
+      const edges = (group.messages && group.messages.edges) || [];
+      const lastMessageIndex = edges.length - 1;
+      const lastMessage = edges[lastMessageIndex];
       const after =
-        lastMessageIndex >= 0
-          ? group.messages.edges[lastMessageIndex].cursor
-          : null;
+        lastMessageIndex >= 0 ? lastMessage && lastMessage.cursor : null;
 
       const { navigation } = props.ownProps;
+      const id = navigation ? navigation.state.params.groupId : '-1';
 
       return {
         loading,
@@ -255,14 +270,23 @@ export default compose(
         loadMoreEntries: () =>
           fetchMore({
             variables: {
-              first: ITEMS_PER_PAGE,
-              after,
+              id,
+              messageConnection: {
+                first: ITEMS_PER_PAGE,
+                after,
+              },
             },
 
             updateQuery(previousResult, options) {
-              const fetchMoreResult = options.fetchMoreResult as GroupQueryWithData;
+              const fetchMoreResult = options.fetchMoreResult;
 
-              if (!fetchMoreResult) {
+              if (
+                !(
+                  fetchMoreResult &&
+                  fetchMoreResult.group &&
+                  fetchMoreResult.group.messages
+                )
+              ) {
                 return previousResult;
               }
 
@@ -282,7 +306,7 @@ export default compose(
             document: MESSAGE_ADDED_SUBSCRIPTION,
 
             variables: {
-              groupIds: [navigation ? navigation.state.params.groupId : '-1'],
+              groupIds: [id],
             },
 
             updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
@@ -296,8 +320,10 @@ export default compose(
     options: ({ navigation }) => {
       return {
         variables: {
-          groupId: (navigation && navigation.state.params.groupId) || '-1',
-          first: ITEMS_PER_PAGE,
+          id: (navigation && navigation.state.params.groupId) || '-1',
+          messageConnection: {
+            first: ITEMS_PER_PAGE,
+          },
         },
       };
     },
@@ -313,8 +339,10 @@ export default compose(
         createMessage: (text: string) =>
           mutate({
             variables: {
-              text,
-              groupId,
+              message: {
+                text,
+                groupId,
+              },
             },
             optimisticResponse: {
               __typename: 'Mutation',
@@ -343,8 +371,10 @@ export default compose(
               const groupData = store.readQuery({
                 query: GROUP_QUERY,
                 variables: {
-                  groupId,
-                  first: ITEMS_PER_PAGE,
+                  id: groupId,
+                  messageConnection: {
+                    first: ITEMS_PER_PAGE,
+                  },
                 },
               }) as GroupQuery;
 
@@ -362,8 +392,10 @@ export default compose(
               store.writeQuery({
                 query: GROUP_QUERY,
                 variables: {
-                  groupId,
-                  first: ITEMS_PER_PAGE,
+                  id: groupId,
+                  messageConnection: {
+                    first: ITEMS_PER_PAGE,
+                  },
                 },
                 data: updatedGroup,
               });
@@ -375,22 +407,34 @@ export default compose(
                 },
               }) as UserQueryWithData;
 
+              if (!(userData.user && userData.user.groups)) {
+                return;
+              }
+
               let grpIndex;
 
               const userGrp = userData.user.groups.find((g, i) => {
-                if (g.id === groupId) {
+                if ((g && g.id) === groupId) {
                   grpIndex = i;
                   return true;
                 }
                 return false;
               });
 
+              if (!(userGrp && userGrp.messages && userGrp.messages.edges)) {
+                return;
+              }
+
+              const firstMsg = userGrp.messages.edges[0];
+
+              if (!firstMsg) {
+                return;
+              }
+
               if (
-                !userGrp ||
-                (userGrp.messages.edges.length &&
-                  moment(userGrp.messages.edges[0].node.createdAt).isAfter(
-                    moment(newMessage.createdAt)
-                  ))
+                moment(firstMsg.node.createdAt).isAfter(
+                  moment(newMessage.createdAt)
+                )
               ) {
                 return;
               }
@@ -425,16 +469,28 @@ export default compose(
 
 const updateGroupQueryWithMessage = (
   groupData: GroupQuery,
-  message: MessageType
+  message: MessageFragmentFragment
 ) => {
+  const result = {
+    updatedGroup: undefined,
+    updatedMessage: undefined,
+  };
+
   if (
-    message.id &&
-    groupData.group.messages.edges.some(m => m.node.id === message.id)
+    !(
+      message.id &&
+      groupData.group &&
+      groupData.group.messages &&
+      groupData.group.messages.edges
+    )
   ) {
-    return {
-      updatedGroup: undefined,
-      updatedMessage: undefined,
-    };
+    return result;
+  }
+
+  if (
+    groupData.group.messages.edges.some(m => (m && m.node.id) === message.id)
+  ) {
+    return result;
   }
 
   const newMessageAsEdge = messageToEdge(message);

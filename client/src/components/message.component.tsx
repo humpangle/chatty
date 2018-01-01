@@ -1,7 +1,7 @@
 import moment from 'moment';
 import * as React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { MessageType } from '../graphql/types.query';
+import { MessageFragmentFragment } from '../graphql/operation-result-types';
 
 const styles = StyleSheet.create({
   container: {
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
 
 interface MessageProps {
   color: string;
-  message: MessageType;
+  message: MessageFragmentFragment;
   isCurrentUser: boolean;
 }
 

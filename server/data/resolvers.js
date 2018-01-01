@@ -57,7 +57,7 @@ export const Resolvers = {
 
     updateGroup: groupLogic.updateGroup,
 
-    login: async (_, { email, password }, ctx) => {
+    login: async (_, { user: { email, password } }, ctx) => {
       const user = await User.findOne({ where: { email } });
 
       if (!user) {
@@ -80,7 +80,7 @@ export const Resolvers = {
       return user;
     },
 
-    signup: async (_, { email, username, password }, ctx) => {
+    signup: async (_, { user: { email, username, password } }, ctx) => {
       if (await User.findOne({ where: { email } })) {
         return Promise.reject("email already exists");
       }

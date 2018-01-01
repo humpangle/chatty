@@ -18,20 +18,23 @@ import {
 } from 'react-navigation';
 import SelectedUserList from '../components/selected-user-list.component';
 import CREATE_GROUP_MUTATION from '../graphql/create-group.mutation';
-import {
-  CreateGroupMutation,
-  UserFriendType,
-  UserGroupType,
-  UserQuery,
-  UserQueryVariables,
-  CreateGroupMutationFunc,
-  CreateGroupMutationProps,
-} from '../graphql/types.query';
+
 import USER_QUERY from '../graphql/user.query';
 import { connect } from 'react-redux';
 import { ReduxState, getUser } from '../reducers/auth.reducer';
+import {
+  UserFriendFragmentFragment,
+  UserQuery,
+  UserGroupFragmentFragment,
+  UserQueryVariables,
+  CreateGroupMutation,
+} from '../graphql/operation-result-types';
+import {
+  CreateGroupMutationFunc,
+  CreateGroupMutationProps,
+} from '../graphql/operation-graphql-types';
 
-const goToNewGroup = ({ id, name }: UserGroupType) =>
+const goToNewGroup = ({ id, name }: UserGroupFragmentFragment) =>
   NavigationActions.reset({
     index: 1,
     actions: [
@@ -107,7 +110,7 @@ interface NavigationState {
   params: {
     mode: string;
     create: () => undefined;
-    selected: UserFriendType[];
+    selected: UserFriendFragmentFragment[];
     friendCount: number;
   };
 }
@@ -115,13 +118,13 @@ interface NavigationState {
 type NavigatorProps = NavigationNavigatorProps<NavigationState>;
 
 interface FinalizeGroupState {
-  selected: UserFriendType[];
+  selected: UserFriendFragmentFragment[];
   name?: string;
 }
 
 interface OwnProps {
   navigation: NavigationScreenProp<NavigationState, {}>;
-  selected?: UserFriendType[];
+  selected?: UserFriendFragmentFragment[];
 }
 
 type UserQueryWithData = QueryProps<UserQueryVariables> & UserQuery;
@@ -238,7 +241,7 @@ class FinalizeGroup extends React.Component<FinalizeGroupProps> {
 
   // private pop = () => this.props.navigation.goBack();
 
-  private remove = (user: UserFriendType) => {
+  private remove = (user: UserFriendFragmentFragment) => {
     const index = this.state.selected.indexOf(user);
 
     if (index !== -1) {
@@ -264,8 +267,10 @@ class FinalizeGroup extends React.Component<FinalizeGroupProps> {
     }
 
     try {
-      const result = await createGroup(name, selected.map(s => s.id));
-      return navigation.dispatch(goToNewGroup(result.data.createGroup));
+      const { data } = await createGroup(name, selected.map(s => s.id));
+      return (
+        data.createGroup && navigation.dispatch(goToNewGroup(data.createGroup))
+      );
     } catch (error) {
       return alert(error.message);
     }
@@ -308,8 +313,10 @@ export default compose(
         createGroup(name: string, userIds: string[]) {
           return mutate({
             variables: {
-              name,
-              userIds,
+              group: {
+                name,
+                userIds,
+              },
             },
 
             update(store, { data: newData }) {
@@ -327,8 +334,8 @@ export default compose(
               const newGroup = newData.createGroup;
 
               if (
-                newGroup.id !== null &&
-                data.user.groups.some(g => g.id === newGroup.id)
+                !(newGroup.id && data.user && data.user.groups) ||
+                data.user.groups.some(g => (g && g.id) === newGroup.id)
               ) {
                 return;
               }

@@ -1,23 +1,24 @@
 import gql from 'graphql-tag';
 import UserGroupFragment from './user-group.fragment';
+import UserFragment from './user.fragment';
+import UserFriendFragment from './user-friend.fragment';
 
 export const USER_QUERY = gql`
-  query user($id: ID) {
+  query User($id: ID, $messageConnection: ConnectionInput = { first: 1 }) {
     user(id: $id) {
-      id
-      email
-      username
+      ...UserFragment
       groups {
         ...UserGroupFragment
       }
       friends {
-        id
-        username
+        ...UserFriendFragment
       }
     }
   }
 
+  ${UserFragment}
   ${UserGroupFragment}
+  ${UserFriendFragment}
 `;
 
 export default USER_QUERY;

@@ -9,7 +9,7 @@ export const GROUP_FRAGMENT = gql`
       id
       username
     }
-    messages(first: $first, after: $after, last: $last, before: $before) {
+    messages(messageConnection: $messageConnection) {
       edges {
         cursor
         node {

@@ -1,0 +1,14 @@
+{
+  schema: {
+    files: '**/*.gql'
+  },
+  query: {
+    files: [
+      {
+        match: 'client/**/*.gql',
+        parser: 'QueryParser',
+        isApollo: true
+      }
+    ]
+  }
+}

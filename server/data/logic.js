@@ -12,7 +12,7 @@ export const messageLogic = {
 
   to: message => message.getGroup({ attributes: ["id", "name"] }),
 
-  createMessage: async ({ text, groupId }, ctx) => {
+  createMessage: async ({ message: { text, groupId } }, ctx) => {
     const user = await getAuthenticatedUser(ctx);
 
     const group = await user.getGroups({
@@ -39,7 +39,8 @@ export const messageLogic = {
 export const groupLogic = {
   users: group => group.getUsers({ attributes: ["id", "username"] }),
 
-  messages: async ({ id: groupId }, { first, last, before, after }) => {
+  messages: async ({ id: groupId }, { messageConnection = {} }) => {
+    const { first, last, before, after } = messageConnection;
     const where = { groupId };
 
     /* Because we return messages from newest to oldest
@@ -112,7 +113,7 @@ export const groupLogic = {
     });
   },
 
-  createGroup: async ({ name, userIds: friends }, ctx) => {
+  createGroup: async ({ createGroupInput: name, userIds: friends }, ctx) => {
     const user = await getAuthenticatedUser(ctx);
     const userIds = [`${user.id}`, ...friends];
     const group = await Group.create({ name });
@@ -182,7 +183,7 @@ export const groupLogic = {
     return { id: `${id}` };
   },
 
-  updateGroup: async (_, { id, name }, ctx) => {
+  updateGroup: async (_, { updateGroupInput: { id, name } }, ctx) => {
     const { id: userId } = await getAuthenticatedUser(ctx);
 
     const group = await Group.findOne({

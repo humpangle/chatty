@@ -1,7 +1,7 @@
 import { Buffer } from 'buffer/';
-import { MessageType } from './graphql/types.query';
+import { MessageFragmentFragment } from './graphql/operation-result-types';
 
-export const messageToEdge = (message: MessageType) => ({
+export const messageToEdge = (message: MessageFragmentFragment) => ({
   __typename: 'MessageEdge',
   node: message,
   cursor: Buffer.from(message.id.toString()).toString('base64'),

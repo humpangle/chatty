@@ -13,15 +13,15 @@ import {
   View,
 } from 'react-native';
 import Icon from 'samba6-vector-icons/FontAwesome';
-import {
-  UserGroupType,
-  UserQuery,
-  UserQueryWithData,
-} from '../graphql/types.query';
+import { UserQueryWithData } from '../graphql/operation-graphql-types';
 import { USER_QUERY } from '../graphql/user.query';
 import reactLogo from '../images/react.png';
 import { connect } from 'react-redux';
 import { ReduxState, getUser } from '../reducers/auth.reducer';
+import {
+  UserGroupFragmentFragment,
+  UserQuery,
+} from '../graphql/operation-result-types';
 
 const styles = StyleSheet.create({
   container: {
@@ -102,13 +102,15 @@ const Header = ({ onPress }: { onPress: () => void }) => (
 );
 
 interface GroupProps {
-  group: UserGroupType;
-  goToMessages: (params: UserGroupType) => void;
+  group: UserGroupFragmentFragment;
+  goToMessages: (params: UserGroupFragmentFragment) => void;
 }
 
 class Group extends React.PureComponent<GroupProps> {
   render() {
-    const { id, name, messages: { edges } } = this.props.group;
+    const { id, name, messages } = this.props.group;
+    const edges = (messages && messages.edges) || [];
+    const firstEdge = edges[0];
 
     return (
       <TouchableHighlight key={id} onPress={this.goToMessages}>
@@ -118,15 +120,15 @@ class Group extends React.PureComponent<GroupProps> {
             <View style={styles.groupTitleContainer}>
               <Text style={styles.groupName}>{name}</Text>
               <Text style={styles.groupLastUpdated}>
-                {edges.length ? formatCreatedAt(edges[0].node.createdAt) : ''}
+                {firstEdge ? formatCreatedAt(firstEdge.node.createdAt) : ''}
               </Text>
             </View>
 
             <Text style={styles.groupUsername}>
-              {edges.length ? edges[0].node.from.username : ''}
+              {firstEdge ? firstEdge.node.from.username : ''}
             </Text>
             <Text style={styles.groupText} numberOfLines={1}>
-              {edges.length ? edges[0].node.text : ''}
+              {firstEdge ? firstEdge.node.text : ''}
             </Text>
           </View>
           <Icon name="angle-right" size={24} color="#8c8c8c" />
@@ -158,7 +160,7 @@ class Groups extends React.Component<GroupsProps> {
     title: 'Chats',
   };
 
-  private flatList: FlatList<UserGroupType>;
+  private flatList: FlatList<UserGroupFragmentFragment>;
 
   render() {
     const { user, networkStatus, loading } = this.props;
@@ -171,7 +173,7 @@ class Groups extends React.Component<GroupsProps> {
       );
     }
 
-    if (!user.groups.length) {
+    if (!(user.groups || []).length) {
       return (
         <View style={styles.container}>
           <Header onPress={this.goToNewGroup} />
@@ -195,24 +197,28 @@ class Groups extends React.Component<GroupsProps> {
     );
   }
 
-  private goToMessages = (group: UserGroupType) => {
-    this.props.navigation.navigate('Messages', {
-      groupId: group.id,
-      title: group.name,
-    });
+  private goToMessages = (group: UserGroupFragmentFragment) => {
+    const { id = '', name = '' } = group || {};
+
+    if (id && name) {
+      this.props.navigation.navigate('Messages', {
+        groupId: id,
+        title: name,
+      });
+    }
   };
 
   private goToNewGroup = () => this.props.navigation.navigate('NewGroup');
 
-  private keyExtractor = (item: UserGroupType) => item.id;
+  private keyExtractor = (item: UserGroupFragmentFragment) => item.id;
 
-  private renderItem = ({ item }: { item: UserGroupType }) => (
+  private renderItem = ({ item }: { item: UserGroupFragmentFragment }) => (
     <Group group={item} goToMessages={this.goToMessages} />
   );
 
   private makeFlatList = (
-    c: React.Component<FlatListProperties<UserGroupType>> &
-      FlatList<UserGroupType>
+    c: React.Component<FlatListProperties<UserGroupFragmentFragment>> &
+      FlatList<UserGroupFragmentFragment>
   ) => (this.flatList = c);
 
   private onRefresh = () => this.props.refetch();

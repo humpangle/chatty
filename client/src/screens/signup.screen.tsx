@@ -24,12 +24,15 @@ import { getUser, ReduxState } from '../reducers/auth.reducer';
 import {
   LoginMutationProps,
   SignupMutationProps,
-  SignupMutation,
-  LoginMutation,
   LoginMutationFunc,
   SignupMutationFunc,
-  AuthMutationVariables,
-} from '../graphql/types.query';
+} from '../graphql/operation-graphql-types';
+import {
+  SignupMutation,
+  LoginMutation,
+  SignupMutationVariables,
+  LoginMutationVariables,
+} from '../graphql/operation-result-types';
 import { CheckBox } from 'react-native-elements';
 
 const capitalizeFirstLetter = (text: string) =>
@@ -220,8 +223,10 @@ class Signin extends React.PureComponent<SigninProps> {
 
     try {
       const { errors, data } = await this.props[view]({
-        email,
-        password,
+        user: {
+          email,
+          password,
+        },
       });
 
       if (errors) {
@@ -292,7 +297,7 @@ export default compose(
       const mutate = props.mutate as LoginMutationFunc;
 
       return {
-        login: (params: AuthMutationVariables) =>
+        login: (params: LoginMutationVariables) =>
           mutate({
             variables: params,
           }),
@@ -305,7 +310,7 @@ export default compose(
       const mutate = props.mutate as SignupMutationFunc;
 
       return {
-        signup: (params: AuthMutationVariables) =>
+        signup: (params: SignupMutationVariables) =>
           mutate({
             variables: params,
           }),

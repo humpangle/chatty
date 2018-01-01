@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'samba6-vector-icons/FontAwesome';
-import { UserFriendType } from '../graphql/types.query';
+import { UserFriendFragmentFragment } from '../graphql/operation-result-types';
 
 const styles = StyleSheet.create({
   list: {
@@ -38,8 +38,8 @@ const styles = StyleSheet.create({
 });
 
 interface SelectedUserListItemProps {
-  remove: (params: UserFriendType) => void;
-  user: UserFriendType;
+  remove: (params: UserFriendFragmentFragment) => void;
+  user: UserFriendFragmentFragment;
 }
 
 export class SelectedUserListItem extends React.PureComponent<
@@ -64,15 +64,15 @@ export class SelectedUserListItem extends React.PureComponent<
 }
 
 interface SelectedUserListProps {
-  remove: (params: UserFriendType) => void;
-  data: UserFriendType[];
+  remove: (params: UserFriendFragmentFragment) => void;
+  data: UserFriendFragmentFragment[];
 }
 
 // tslint:disable-next-line:max-classes-per-file
 class SelectedUserList extends React.Component<SelectedUserListProps> {
-  keyExtractor = (item: UserFriendType) => item.id;
+  keyExtractor = (item: UserFriendFragmentFragment) => item.id;
 
-  renderItem = ({ item: user }: { item: UserFriendType }) => (
+  renderItem = ({ item: user }: { item: UserFriendFragmentFragment }) => (
     <SelectedUserListItem user={user} remove={this.props.remove} />
   );
 

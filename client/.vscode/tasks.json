@@ -13,6 +13,24 @@
       "type": "shell",
       "command": "cat .browser.d.tsa  > node_modules/react-apollo/browser.d.ts",
       "problemMatcher": []
+    },
+    {
+      "label": "Apollo code gen",
+      "type": "shell",
+      "command": "apollo-codegen generate src/graphql/*.ts --schema schema.json --target typescript --output src/graphql/operation-result-types.ts",
+      "problemMatcher": []
+    },
+    {
+      "label": "introspect-schema",
+      "type": "shell",
+      "command": "apollo-codegen introspect-schema http://localhost:8082/graphql --output schema.json",
+      "problemMatcher": []
+    },
+    {
+      "label": "babel-preset-react-native.configs.main.js",
+      "type": "shell",
+      "command": "cp babel-preset-react-native.configs.main.js node_modules/babel-preset-react-native/configs/main.js",
+      "problemMatcher": []
     }
   ]
 }

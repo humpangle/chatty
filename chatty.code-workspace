@@ -8,8 +8,14 @@
 			"name": "Client",
 			"path": "client"
 		}
+		// ,
+		// {
+		// 	"name": "__Main__",
+		// 	"path": "."
+		// }
 	],
 	"settings": {
-		"typescript.tsdk": "Client/node_modules/typescript/lib"
+		"typescript.tsdk": "Client/node_modules/typescript/lib",
+		"graphqlForVSCode.nodePath": "../client/node_modules"
 	}
 }

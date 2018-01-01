@@ -15,7 +15,8 @@ import { connect } from 'react-redux';
 import { wsClient } from './App';
 import GROUP_ADDED_SUBSCRIPTION from './graphql/group-added.subscription';
 import MESSAGE_ADDED_SUBSCRIPTION from './graphql/message-added.subscription';
-import { UserQuery, UserQueryWithData } from './graphql/types.query';
+import { UserQueryWithData } from './graphql/operation-graphql-types';
+import { UserQuery } from './graphql/operation-result-types';
 import USER_QUERY from './graphql/user.query';
 import FinalizeGroup from './screens/finalize-group.screen';
 import Groups from './screens/groups.screen';
@@ -174,12 +175,17 @@ class AppWithNavigationState extends React.Component<
       }
     }
 
+    const currentUser = this.props.user;
+    const currentGrps = currentUser && currentUser.groups;
+    const nextUser = nextProps.user;
+    const nextGrps = nextUser && nextUser.groups;
+
     if (
-      nextProps.user && // the next user
-      (!this.props.user || // and no current user
+      nextUser && // the next user
+      (!currentUser || // and no current user
         // if current user has received additional group(s), we want to
         // subscribe to new messages from the additional group(s)
-        this.props.user.groups.length !== nextProps.user.groups.length)
+        (currentGrps && currentGrps.length) !== (nextGrps && nextGrps.length))
     ) {
       // unsubscribe from old
       if (this.messageSubscription) {
@@ -189,7 +195,7 @@ class AppWithNavigationState extends React.Component<
       this.messageSubscription = nextProps.subscribeToMessages();
     }
 
-    if (nextProps.user && !this.groupSubscription) {
+    if (nextUser && !this.groupSubscription) {
       this.groupSubscription = nextProps.subscribeToGroups();
     }
   }
@@ -251,21 +257,31 @@ export default compose(
         user,
 
         subscribeToMessages() {
+          const groups = (user && user.groups) || [];
+
           return subscribeToMore({
             document: MESSAGE_ADDED_SUBSCRIPTION,
 
             variables: {
-              groupIds: user.groups.map(g => g.id),
+              groupIds: groups.map(g => (g ? g.id : '')),
             },
 
             updateQuery(previous: UserQuery, { subscriptionData: { data } }) {
               const newMessage = data.messageAdded;
+              const previousGrps =
+                (previous.user && previous.user.groups) || [];
+
               let grpIndex = -1;
-              const group = previous.user.groups.find((g, i) => {
+              const group = previousGrps.find((g, i) => {
+                if (!g) {
+                  return false;
+                }
+
                 if (g.id === newMessage.to.id) {
                   grpIndex = i;
                   return true;
                 }
+
                 return false;
               });
 
