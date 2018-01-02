@@ -18,7 +18,8 @@ export const Schema = [
     input UpdateGroupInput {
       id: ID!
       name: String
-      userIds: [ID]
+      userIds: [ID!]
+      lastRead: ID
     }
 
     input SigninUserInput {
@@ -38,11 +39,21 @@ export const Schema = [
       before: String
     }
 
+    # input for updating groups
+    input updateGroupInput {
+      id: ID!
+      lastRead: ID
+      name: String
+      userIds: [ID!]
+    }
+
     type Group {
       id: ID!
       name: String
       users: [User]!
       messages(messageConnection: ConnectionInput): MessageConnection
+      lastRead: Message # message last read by user
+      unreadCount: Int # number of unread messages by user
     }
 
     type User {
@@ -92,8 +103,8 @@ export const Schema = [
 
     type Mutation {
       createMessage(message: CreateMessageInput!): Message
-      createGroup(group: CreateGroupInput): Group
-      updateGroup(group: UpdateGroupInput): Group
+      createGroup(group: CreateGroupInput!): Group
+      updateGroup(group: UpdateGroupInput!): Group
       leaveGroup(id: ID!): Group
       deleteGroup(id: ID!): Group
       login(user: SigninUserInput): User

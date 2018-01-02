@@ -12,6 +12,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { connect } from 'react-redux';
+import gql from 'graphql-tag';
+
 import { NavigationNavigatorProps, NavigationProp } from 'react-navigation';
 import MessageInput from '../components/message-input.component';
 import Message from '../components/message.component';
@@ -20,7 +23,6 @@ import { GROUP_QUERY } from '../graphql/group.query';
 import MESSAGE_ADDED_SUBSCRIPTION from '../graphql/message-added.subscription';
 import USER_QUERY from '../graphql/user.query';
 import { messageToEdge } from '../utils';
-import { connect } from 'react-redux';
 import { ReduxState, getUser } from '../reducers/auth.reducer';
 import {
   CreateMessageMutation,
@@ -28,13 +30,19 @@ import {
   MessageFragmentFragment,
   GroupQuery,
   GroupFragmentFragment,
+  UpdateGroupMutation,
+  GroupUserFragmentFragment,
 } from '../graphql/operation-result-types';
 import {
   CreateMessageMutationFunc,
   CreateMessageMutationProps,
   UserQueryWithData,
   GroupQueryWithData,
+  UpdateGroupMutationProps,
 } from '../graphql/operation-graphql-types';
+import UPDATE_GROUP_MUTATION from '../graphql/update-group.mutation';
+
+const optimisticResponseGroupId = '-1';
 
 const styles = StyleSheet.create({
   container: {
@@ -63,14 +71,20 @@ interface FromReduxState {
 type OwnProps = NavigatorProps & {
   loadMoreEntries: () => undefined;
   subscribeToNewMessages: () => () => undefined;
+  latestMessageId?: string;
+  lastReadId?: string;
 };
 
 type InputProps = OwnProps &
   GroupQueryWithData &
   CreateMessageMutationProps &
-  FromReduxState;
+  FromReduxState &
+  UpdateGroupMutationProps;
 
-type MessagesProps = ChildProps<InputProps, GroupQuery & CreateMessageMutation>;
+type MessagesProps = ChildProps<
+  InputProps,
+  GroupQuery & CreateMessageMutation & UpdateGroupMutation
+>;
 
 interface MessagesState {
   usernameColors: { [key: string]: string };
@@ -95,26 +109,33 @@ class Messages extends React.Component<MessagesProps> {
   private newMessageSubscription: () => undefined;
 
   componentWillReceiveProps(nextProps: MessagesProps) {
-    if (nextProps.group && nextProps.group.users) {
-      const usernameColors = { ...this.state.usernameColors };
+    const {
+      group: nextGrp,
+      latestMessageId,
+      lastReadId,
+      updateGroup,
+    } = nextProps;
 
-      nextProps.group.users.forEach(user => {
-        const { username = '' } = user || {};
-        if (username) {
-          usernameColors[username] = usernameColors[username] || randomColor();
-        }
-      });
+    if (nextGrp) {
+      if (
+        // the latest message is not from the optimistic response
+        latestMessageId &&
+        latestMessageId !== optimisticResponseGroupId &&
+        // user has not read any message or latest message
+        (!lastReadId || lastReadId !== latestMessageId) &&
+        updateGroup
+      ) {
+        updateGroup(nextGrp.name || '', latestMessageId);
+      }
 
-      this.setState(prevState => {
-        return { ...prevState, usernameColors };
-      });
+      const users = nextGrp.users as GroupUserFragmentFragment[];
+      this.updateUserColors(users);
     }
 
-    if (!nextProps.group && this.newMessageSubscription) {
+    if (!nextGrp && this.newMessageSubscription) {
       this.newMessageSubscription();
     }
 
-    const { group: nextGrp } = nextProps;
     const { group: currentGrp } = this.props;
 
     if (nextGrp && (!currentGrp || nextGrp.id !== currentGrp.id)) {
@@ -123,12 +144,6 @@ class Messages extends React.Component<MessagesProps> {
       }
 
       this.newMessageSubscription = nextProps.subscribeToNewMessages();
-    }
-  }
-
-  componentWillUnmount() {
-    if (this.newMessageSubscription) {
-      this.newMessageSubscription();
     }
   }
 
@@ -174,9 +189,28 @@ class Messages extends React.Component<MessagesProps> {
     );
   }
 
-  private keyExtractor = (item: MessageEdgeFragmentFragment) => item.node.id;
+  updateUserColors = (users: GroupUserFragmentFragment[] | null) => {
+    if (!users) {
+      return;
+    }
 
-  private renderItem = ({
+    const usernameColors = { ...this.state.usernameColors };
+
+    users.forEach(user => {
+      const { username = '' } = user || {};
+      if (username) {
+        usernameColors[username] = usernameColors[username] || randomColor();
+      }
+    });
+
+    this.setState(prevState => {
+      return { ...prevState, usernameColors };
+    });
+  };
+
+  keyExtractor = (item: MessageEdgeFragmentFragment) => item.node.id;
+
+  renderItem = ({
     item: { node: message },
   }: {
     item: MessageEdgeFragmentFragment;
@@ -192,12 +226,12 @@ class Messages extends React.Component<MessagesProps> {
     );
   };
 
-  private makeFlatList = (
+  makeFlatList = (
     c: React.Component<FlatListProperties<GroupFragmentFragment>> &
       FlatList<GroupFragmentFragment>
   ) => (this.flatList = c);
 
-  private send = async (text: string) => {
+  send = async (text: string) => {
     if (!text) {
       return;
     }
@@ -210,7 +244,7 @@ class Messages extends React.Component<MessagesProps> {
     });
   };
 
-  private onEndReached = async () => {
+  onEndReached = async () => {
     const { group, loadMoreEntries } = this.props;
 
     const hasNextPage =
@@ -234,105 +268,112 @@ class Messages extends React.Component<MessagesProps> {
 
 const ITEMS_PER_PAGE = 10;
 
-export default compose(
-  connect<FromReduxState, {}, {}, ReduxState>(state => ({
-    ...getUser(state),
-  })),
+const fromRedux = connect<FromReduxState, {}, {}, ReduxState>(state => ({
+  ...getUser(state),
+}));
 
-  graphql<GroupQuery, InputProps>(GROUP_QUERY, {
-    props: props => {
-      const {
-        loading,
-        group,
-        fetchMore,
-        error,
-        subscribeToMore,
-      } = props.data as GroupQueryWithData;
-
-      if (!group || loading || error) {
-        return { loading, error };
-      }
-
-      const edges = (group.messages && group.messages.edges) || [];
-      const lastMessageIndex = edges.length - 1;
-      const lastMessage = edges[lastMessageIndex];
-      const after =
-        lastMessageIndex >= 0 ? lastMessage && lastMessage.cursor : null;
-
-      const { navigation } = props.ownProps;
-      const id = navigation ? navigation.state.params.groupId : '-1';
-
-      return {
-        loading,
-        error,
-        group,
-
-        loadMoreEntries: () =>
-          fetchMore({
-            variables: {
-              id,
-              messageConnection: {
-                first: ITEMS_PER_PAGE,
-                after,
-              },
-            },
-
-            updateQuery(previousResult, options) {
-              const fetchMoreResult = options.fetchMoreResult;
-
-              if (
-                !(
-                  fetchMoreResult &&
-                  fetchMoreResult.group &&
-                  fetchMoreResult.group.messages
-                )
-              ) {
-                return previousResult;
-              }
-
-              return update(previousResult, {
-                group: {
-                  messages: {
-                    edges: { $push: fetchMoreResult.group.messages.edges },
-                    pageInfo: { $set: fetchMoreResult.group.messages.pageInfo },
-                  },
-                },
-              });
-            },
-          }),
-
-        subscribeToNewMessages: () =>
-          subscribeToMore({
-            document: MESSAGE_ADDED_SUBSCRIPTION,
-
-            variables: {
-              groupIds: [id],
-            },
-
-            updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
-              return updateGroupQueryWithMessage(previous, data.messageAdded)
-                .updatedGroup;
-            },
-          }),
-      };
-    },
-
-    options: ({ navigation }) => {
-      return {
-        variables: {
-          id: (navigation && navigation.state.params.groupId) || '-1',
-          messageConnection: {
-            first: ITEMS_PER_PAGE,
-          },
+const fromGroupQuery = graphql<GroupQuery, InputProps>(GROUP_QUERY, {
+  options: ({ navigation }) => {
+    return {
+      variables: {
+        id: (navigation && navigation.state.params.groupId) || '-1',
+        messageConnection: {
+          first: ITEMS_PER_PAGE,
         },
-      };
-    },
-  }),
+      },
+    };
+  },
 
-  graphql<CreateMessageMutation, InputProps>(CREATE_MESSAGE_MUTATION, {
+  props: props => {
+    const {
+      loading,
+      group,
+      fetchMore,
+      error,
+      subscribeToMore,
+    } = props.data as GroupQueryWithData;
+
+    if (!group || loading || error) {
+      return { loading, error };
+    }
+
+    const edges = (group.messages && group.messages.edges) || [];
+    const oldestMessage = edges[edges.length - 1];
+    const after = oldestMessage ? oldestMessage.cursor : null;
+
+    const latestMessage = edges[0];
+    const latestMessageId = latestMessage ? latestMessage.node.id : undefined;
+
+    const lastRead = group.lastRead;
+    const lastReadId = lastRead ? lastRead.id : undefined;
+
+    const { navigation } = props.ownProps;
+    const id = navigation ? navigation.state.params.groupId : '-1';
+
+    return {
+      loading,
+      error,
+      group,
+      latestMessageId,
+      lastReadId,
+
+      loadMoreEntries: () =>
+        fetchMore({
+          variables: {
+            id,
+            messageConnection: {
+              first: ITEMS_PER_PAGE,
+              after,
+            },
+          },
+
+          updateQuery(previousResult, options) {
+            const { fetchMoreResult } = options;
+
+            if (
+              !(
+                fetchMoreResult &&
+                fetchMoreResult.group &&
+                fetchMoreResult.group.messages
+              )
+            ) {
+              return previousResult;
+            }
+
+            return update(previousResult, {
+              group: {
+                messages: {
+                  edges: { $push: fetchMoreResult.group.messages.edges },
+                  pageInfo: { $set: fetchMoreResult.group.messages.pageInfo },
+                },
+              },
+            });
+          },
+        }),
+
+      subscribeToNewMessages: () =>
+        subscribeToMore({
+          document: MESSAGE_ADDED_SUBSCRIPTION,
+
+          variables: {
+            groupIds: [id],
+          },
+
+          updateQuery(previous: GroupQuery, { subscriptionData: { data } }) {
+            return updateGroupQueryWithMessage(previous, data.messageAdded)
+              .updatedGroup;
+          },
+        }),
+    };
+  },
+});
+
+const fromCreateMessageMutation = graphql<CreateMessageMutation, InputProps>(
+  CREATE_MESSAGE_MUTATION,
+  {
     props: props => {
       const mutate = props.mutate as CreateMessageMutationFunc;
-      const { navigation, id, username } = props.ownProps;
+      const { navigation, id: userId, username } = props.ownProps;
       const groupId = (navigation && navigation.state.params.groupId) || '-1';
 
       return {
@@ -348,12 +389,12 @@ export default compose(
               __typename: 'Mutation',
               createMessage: {
                 __typename: 'Message',
-                id: '-1',
+                id: optimisticResponseGroupId,
                 text,
                 createdAt: new Date().toISOString(),
                 from: {
                   __typename: 'User',
-                  id,
+                  id: userId,
                   username,
                 },
                 to: {
@@ -368,6 +409,7 @@ export default compose(
                 return;
               }
 
+              // prepend newly created message in group's messages
               const groupData = store.readQuery({
                 query: GROUP_QUERY,
                 variables: {
@@ -400,10 +442,11 @@ export default compose(
                 data: updatedGroup,
               });
 
+              // update user query with updated group above
               const userData = store.readQuery({
                 query: USER_QUERY,
                 variables: {
-                  id,
+                  id: userId,
                 },
               }) as UserQueryWithData;
 
@@ -425,14 +468,19 @@ export default compose(
                 return;
               }
 
-              const firstMsg = userGrp.messages.edges[0];
+              const currentLatestMsg = userGrp.messages.edges[0];
 
-              if (!firstMsg) {
+              if (!currentLatestMsg) {
                 return;
               }
 
+              /* We are only displaying the latest message in the screen where
+            USER_QUERY is used. So if the newly created message is, by chance,
+            older than the current latest message we are displaying, we do
+            no update.
+            */
               if (
-                moment(firstMsg.node.createdAt).isAfter(
+                moment(currentLatestMsg.node.createdAt).isAfter(
                   moment(newMessage.createdAt)
                 )
               ) {
@@ -450,7 +498,7 @@ export default compose(
               store.writeQuery({
                 query: USER_QUERY,
                 variables: {
-                  id,
+                  id: userId,
                 },
                 data: update(userData, {
                   user: {
@@ -464,7 +512,67 @@ export default compose(
           }),
       };
     },
-  })
+  }
+);
+
+const fromUpdateGroupMutation = graphql<UpdateGroupMutation, InputProps>(
+  UPDATE_GROUP_MUTATION,
+  {
+    props: props => {
+      const mutate = props.mutate;
+
+      if (!mutate) {
+        return {};
+      }
+
+      const { navigation } = props.ownProps;
+      const groupId = (navigation && navigation.state.params.groupId) || '-1';
+      return {
+        updateGroup: (name: string, lastRead: string) =>
+          mutate({
+            variables: {
+              group: {
+                name,
+                lastRead,
+                id: groupId,
+              },
+            },
+
+            update: (store, { data }) => {
+              if (!data) {
+                return;
+              }
+
+              const updateGroup = data.updateGroup;
+
+              if (!updateGroup) {
+                return;
+              }
+
+              store.writeFragment({
+                id: `Group:${updateGroup.id}`,
+                fragment: gql`
+                  fragment group on Group {
+                    unreadCount
+                  }
+                `,
+                data: {
+                  __typename: 'Group',
+                  unreadCount: 0,
+                },
+              });
+            },
+          }),
+      };
+    },
+  }
+);
+
+export default compose(
+  fromRedux,
+  fromGroupQuery,
+  fromCreateMessageMutation,
+  fromUpdateGroupMutation
 )(Messages);
 
 const updateGroupQueryWithMessage = (

@@ -24,10 +24,31 @@ const UserModel = db.define("user", {
   version: { type: Sequelize.INTEGER }
 });
 
+// User.getGroups() = Array<Group>
 UserModel.belongsToMany(GroupModel, { through: "GroupUser" });
+
+// User.getFriends() = Array<User>
 UserModel.belongsToMany(UserModel, { through: "Friends", as: "friends" });
+
+// Message.getUser() = User
 MessageModel.belongsTo(UserModel);
+
+// User.getLastRead() = Array<Messages> : messages last read by a user
+UserModel.belongsToMany(MessageModel, {
+  through: "MessageUser",
+  as: "lastRead"
+});
+
+// Message.getLastRead() = Array<User> : users that last read a message
+MessageModel.belongsToMany(UserModel, {
+  through: "MessageUser",
+  as: "lastRead"
+});
+
+// Message.getGroup() = Group
 MessageModel.belongsTo(GroupModel);
+
+// Group.getUsers = Array<User>
 GroupModel.belongsToMany(UserModel, { through: "GroupUser" });
 
 const Group = db.models.group;

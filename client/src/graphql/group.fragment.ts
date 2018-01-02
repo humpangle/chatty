@@ -1,20 +1,28 @@
 import gql from 'graphql-tag';
-import MESSAGE_FRAGMENT from './message.fragment';
+import MessageEdgeFragment from './message-edge.fragment';
+
+const GroupUserFragment = gql`
+  fragment GroupUserFragment on User {
+    id
+    username
+  }
+`;
 
 export const GROUP_FRAGMENT = gql`
   fragment GroupFragment on Group {
     id
     name
-    users {
+    unreadCount
+    lastRead {
       id
-      username
+      createdAt
+    }
+    users {
+      ...GroupUserFragment
     }
     messages(messageConnection: $messageConnection) {
       edges {
-        cursor
-        node {
-          ...MessageFragment
-        }
+        ...MessageEdgeFragment
       }
       pageInfo {
         hasNextPage
@@ -22,7 +30,8 @@ export const GROUP_FRAGMENT = gql`
       }
     }
   }
-  ${MESSAGE_FRAGMENT}
+  ${GroupUserFragment}
+  ${MessageEdgeFragment}
 `;
 
 export default GROUP_FRAGMENT;

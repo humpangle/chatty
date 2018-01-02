@@ -1,20 +1,11 @@
 import gql from 'graphql-tag';
-import MessageFragment from './message.fragment';
-
-export const MessageEdgeFragment = gql`
-  fragment MessageEdgeFragment on MessageEdge {
-    cursor
-    node {
-      ...MessageFragment
-    }
-  }
-  ${MessageFragment}
-`;
+import MessageEdgeFragment from './message-edge.fragment';
 
 export const UserGroupFragment = gql`
   fragment UserGroupFragment on Group {
     id
     name
+    unreadCount
     messages(messageConnection: $messageConnection) {
       edges {
         ...MessageEdgeFragment

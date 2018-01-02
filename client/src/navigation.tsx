@@ -273,11 +273,7 @@ export default compose(
 
               let grpIndex = -1;
               const group = previousGrps.find((g, i) => {
-                if (!g) {
-                  return false;
-                }
-
-                if (g.id === newMessage.to.id) {
+                if ((g && g.id) === newMessage.to.id) {
                   grpIndex = i;
                   return true;
                 }
@@ -289,6 +285,17 @@ export default compose(
                 return previous;
               }
 
+              const { routes, index } = props.ownProps.nav;
+              const currentRoute = routes[index];
+              const routeName = currentRoute.routeName;
+              const routeGrpId =
+                currentRoute.params && currentRoute.params.groupId;
+              let unreadCount = group.unreadCount || 0;
+
+              if (routeName !== 'Messages' || routeGrpId !== group.id) {
+                unreadCount += 1;
+              }
+
               return update(previous, {
                 user: {
                   groups: {
@@ -297,6 +304,9 @@ export default compose(
                         edges: {
                           $unshift: [messageToEdge(newMessage)],
                         },
+                      },
+                      unreadCount: {
+                        $set: unreadCount,
                       },
                     },
                   },

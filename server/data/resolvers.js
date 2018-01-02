@@ -163,7 +163,11 @@ export const Resolvers = {
   Group: {
     users: groupLogic.users,
 
-    messages: groupLogic.messages
+    messages: groupLogic.messages,
+
+    lastRead: groupLogic.lastRead,
+
+    unreadCount: groupLogic.unreadCount
   },
 
   Message: {

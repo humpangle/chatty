@@ -13,7 +13,21 @@ import {
   CreateMessageMutationVariables,
   GroupQueryVariables,
   GroupQuery,
+  UpdateGroupMutation,
+  UpdateGroupMutationVariables,
 } from './operation-result-types';
+
+export type UpdateGroupMutationFunc = MutationFunc<
+  UpdateGroupMutation,
+  UpdateGroupMutationVariables
+>;
+
+export type UpdateGroupMutationProps = UpdateGroupMutationFunc & {
+  updateGroup?: (
+    name: string,
+    lastRead: string
+  ) => Promise<ApolloQueryResult<UpdateGroupMutation>>;
+};
 
 export type LoginMutationFunc = MutationFunc<
   LoginMutation,

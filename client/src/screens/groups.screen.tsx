@@ -82,6 +82,27 @@ const styles = StyleSheet.create({
   groupUsername: {
     paddingVertical: 4,
   },
+  groupTextInnerContainer: {
+    flexDirection: 'row',
+    flex: 1,
+    paddingRight: 6,
+    alignItems: 'center',
+  },
+  groupBadge: {
+    borderRadius: 20,
+    backgroundColor: '#037aff',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  groupBadgeText: {
+    color: '#fff',
+    textAlign: 'center',
+  },
+  column: {
+    flex: 1,
+    flexDirection: 'column',
+  },
 });
 
 const formatCreatedAt = (createdAt: string) => {
@@ -108,7 +129,7 @@ interface GroupProps {
 
 class Group extends React.PureComponent<GroupProps> {
   render() {
-    const { id, name, messages } = this.props.group;
+    const { id, name, messages, unreadCount } = this.props.group;
     const edges = (messages && messages.edges) || [];
     const firstEdge = edges[0];
 
@@ -124,12 +145,26 @@ class Group extends React.PureComponent<GroupProps> {
               </Text>
             </View>
 
-            <Text style={styles.groupUsername}>
-              {firstEdge ? firstEdge.node.from.username : ''}
-            </Text>
-            <Text style={styles.groupText} numberOfLines={1}>
-              {firstEdge ? firstEdge.node.text : ''}
-            </Text>
+            <View style={styles.groupTextInnerContainer}>
+              <View style={styles.column}>
+                <Text style={styles.groupUsername}>
+                  {firstEdge ? firstEdge.node.from.username : ''}
+                </Text>
+                <Text style={styles.groupText} numberOfLines={1}>
+                  {firstEdge ? firstEdge.node.text : ''}
+                </Text>
+              </View>
+
+              {unreadCount ? (
+                <TouchableHighlight>
+                  <View style={styles.groupBadge}>
+                    <Text style={styles.groupBadgeText}>{unreadCount}</Text>
+                  </View>
+                </TouchableHighlight>
+              ) : (
+                undefined
+              )}
+            </View>
           </View>
           <Icon name="angle-right" size={24} color="#8c8c8c" />
         </View>

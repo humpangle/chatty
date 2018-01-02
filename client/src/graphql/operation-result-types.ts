@@ -24,6 +24,13 @@ export interface SigninUserInput {
   username?: string | null,
 };
 
+export interface UpdateGroupInput {
+  id: string,
+  name?: string | null,
+  userIds?: Array< string > | null,
+  lastRead?: string | null,
+};
+
 export interface CreateGroupMutationVariables {
   group: CreateGroupInput,
   messageConnection?: ConnectionInput | null,
@@ -33,6 +40,7 @@ export interface CreateGroupMutation {
   createGroup:  {
     id: string,
     name: string | null,
+    unreadCount: number | null,
     messages:  {
       edges:  Array< {
         cursor: string,
@@ -80,6 +88,7 @@ export interface GroupAddedSubscriptionSubscription {
   groupAdded:  {
     id: string,
     name: string | null,
+    unreadCount: number | null,
     messages:  {
       edges:  Array< {
         cursor: string,
@@ -109,6 +118,11 @@ export interface GroupQuery {
   group:  {
     id: string,
     name: string | null,
+    unreadCount: number | null,
+    lastRead:  {
+      id: string,
+      createdAt: string,
+    } | null,
     users:  Array< {
       id: string,
       username: string | null,
@@ -180,6 +194,21 @@ export interface SignupMutation {
   } | null,
 };
 
+export interface UpdateGroupMutationVariables {
+  group: UpdateGroupInput,
+};
+
+export interface UpdateGroupMutation {
+  updateGroup:  {
+    id: string,
+    name: string | null,
+    lastRead:  {
+      id: string,
+      createdAt: string,
+    } | null,
+  } | null,
+};
+
 export interface UserQueryVariables {
   id?: string | null,
   messageConnection?: ConnectionInput | null,
@@ -193,6 +222,7 @@ export interface UserQuery {
     groups:  Array< {
       id: string,
       name: string | null,
+      unreadCount: number | null,
       messages:  {
         edges:  Array< {
           cursor: string,
@@ -218,9 +248,19 @@ export interface UserQuery {
   } | null,
 };
 
+export interface GroupUserFragmentFragment {
+  id: string,
+  username: string | null,
+};
+
 export interface GroupFragmentFragment {
   id: string,
   name: string | null,
+  unreadCount: number | null,
+  lastRead:  {
+    id: string,
+    createdAt: string,
+  } | null,
   users:  Array< {
     id: string,
     username: string | null,
@@ -248,6 +288,22 @@ export interface GroupFragmentFragment {
   } | null,
 };
 
+export interface MessageEdgeFragmentFragment {
+  cursor: string,
+  node:  {
+    id: string,
+    from:  {
+      id: string,
+      username: string | null,
+    },
+    createdAt: string,
+    text: string,
+    to:  {
+      id: string,
+    },
+  },
+};
+
 export interface MessageFragmentFragment {
   id: string,
   from:  {
@@ -266,25 +322,10 @@ export interface UserFriendFragmentFragment {
   username: string | null,
 };
 
-export interface MessageEdgeFragmentFragment {
-  cursor: string,
-  node:  {
-    id: string,
-    from:  {
-      id: string,
-      username: string | null,
-    },
-    createdAt: string,
-    text: string,
-    to:  {
-      id: string,
-    },
-  },
-};
-
 export interface UserGroupFragmentFragment {
   id: string,
   name: string | null,
+  unreadCount: number | null,
   messages:  {
     edges:  Array< {
       cursor: string,

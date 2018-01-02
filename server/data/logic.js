@@ -113,7 +113,7 @@ export const groupLogic = {
     });
   },
 
-  createGroup: async ({ createGroupInput: name, userIds: friends }, ctx) => {
+  createGroup: async ({ group: { name, userIds: friends } }, ctx) => {
     const user = await getAuthenticatedUser(ctx);
     const userIds = [`${user.id}`, ...friends];
     const group = await Group.create({ name });
@@ -183,10 +183,10 @@ export const groupLogic = {
     return { id: `${id}` };
   },
 
-  updateGroup: async (_, { updateGroupInput: { id, name } }, ctx) => {
-    const { id: userId } = await getAuthenticatedUser(ctx);
+  updateGroup: async (_, { group: { id, name, lastRead } }, ctx) => {
+    const user = await getAuthenticatedUser(ctx);
 
-    const group = await Group.findOne({
+    let group = await Group.findOne({
       where: {
         id
       },
@@ -194,7 +194,7 @@ export const groupLogic = {
         {
           model: User,
           where: {
-            id: userId
+            id: user.id
           }
         }
       ]
@@ -202,14 +202,73 @@ export const groupLogic = {
 
     if (!group) {
       return Promise.reject(
-        `No group with id "${id}" found for user ${userId}`
+        `No group with id "${id}" found for user ${user.id}`
       );
     }
 
-    return await group.update({ name });
+    let options = {};
+
+    if (lastRead) {
+      const oldLastRead = await user.getLastRead({
+        where: {
+          groupId: id
+        }
+      });
+      await user.removeLastRead(oldLastRead);
+      options = await user.addLastRead(lastRead);
+    }
+
+    if (name) {
+      options = { ...options, name };
+    }
+
+    return await group.update(options);
   },
 
-  queryGroups: () => Group.findAll()
+  queryGroups: () => Group.findAll(),
+
+  lastRead: async ({ id: groupId }, _, ctx) => {
+    try {
+      const user = await getAuthenticatedUser(ctx);
+      const lastRead = await user.getLastRead({
+        where: {
+          groupId
+        }
+      });
+
+      return lastRead.length ? lastRead[0] : null;
+    } catch (error) {
+      return null;
+    }
+  },
+
+  unreadCount: async ({ id: groupId }, _, ctx) => {
+    try {
+      const user = await getAuthenticatedUser(ctx);
+      const lastRead = await user.getLastRead({
+        where: {
+          groupId
+        }
+      });
+
+      if (!lastRead.length) {
+        return await Message.count({
+          where: {
+            groupId
+          }
+        });
+      }
+
+      return await Message.count({
+        where: {
+          groupId,
+          createdAt: { $gt: lastRead[0].createdAt }
+        }
+      });
+    } catch (error) {
+      return Promise.reject("Error while getting group unread messages count.");
+    }
+  }
 };
 
 export const userLogic = {
